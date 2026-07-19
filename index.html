@@ -11,11 +11,17 @@
    No backend. All data is fake.
    Every pack: 1 card, guaranteed floor value, occasional bonus.
 
+   Economy rules:
+   - a card's rarity tier is decided by its value (RARITY_BANDS)
+   - pack odds are tuned so long-run payout is ~82-88% of price:
+     the house keeps a 12-18% edge on every tier
    Design rules:
    - one layout primitive: the hairline-divided list row
    - no boxes, chips, or badges; whitespace and type do the work
    - one accent (gold), used only for chase + bonus moments
-   - color appears only inside card artwork
+   - each pack tier carries one accent color (--tierc) on its
+     wrapper, preview icon, and card back
+   - color appears only inside card artwork and tier accents
    Motion rules:
    - the rip is a 3D scene: pointer tilt, foil glare, real depth
    - GSAP drives choreography; canvas-confetti drives celebrations
@@ -137,6 +143,23 @@ nav.hidden{display:none}
   font-size:11.5px;color:var(--faint);line-height:1.7;
   margin-top:26px;
 }
+/* pack preview icon: a miniature of the wrapper, tinted per tier */
+.pack-icon{
+  position:relative;flex:0 0 auto;width:46px;height:62px;
+  background:var(--ink);
+  background-image:repeating-linear-gradient(115deg, transparent 0 5px, rgba(255,255,255,.03) 5px 6px);
+  border-radius:7px;overflow:hidden;
+  display:flex;align-items:flex-end;padding:6px 8px;
+}
+.pack-icon::before{ /* tear strip */
+  content:'';position:absolute;top:8px;left:0;right:0;height:5px;
+  background:var(--tierc,#c9a227);opacity:.9;
+}
+.pack-icon b{font-size:17px;font-weight:800;color:#fff;line-height:1}
+.pack-icon i{
+  position:absolute;bottom:8px;right:8px;width:6px;height:6px;
+  border-radius:50%;background:var(--tierc,#c9a227);
+}
 
 /* ============================================================
    CARDS (shared 3D flip card)
@@ -153,13 +176,46 @@ nav.hidden{display:none}
   border:1px solid #d9d8d0;border-radius:10px;overflow:hidden;
   background:var(--bg);
 }
-/* --- card back --- */
+/* --- card back: dark foil design, tinted by pack tier (--tierc) --- */
 .card-back{
+  background:#191815;
+  background-image:
+    radial-gradient(circle at 50% 44%, #ffffff12, transparent 62%),
+    repeating-linear-gradient(45deg, transparent 0 9px, #ffffff07 9px 10px),
+    repeating-linear-gradient(-45deg, transparent 0 9px, #00000038 9px 10px);
+  border-color:#12110d;
+  display:grid;place-items:center;
+  container-type:inline-size;
+}
+.card-back::before{ /* soft tier-tinted glow behind the emblem */
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--tierc,#c9a227) 16%, transparent), transparent 58%);
+}
+.card-back .cb-frame{ /* quiet neutral hairline, no colored outline */
+  position:absolute;inset:4.5cqw;border-radius:5cqw;
+  border:1px solid #ffffff12;
+  pointer-events:none;
+}
+.card-back .cb-emblem{ /* filled, softly lit — no border */
+  width:34cqw;aspect-ratio:1;transform:rotate(45deg);
+  border-radius:16%;
+  background:linear-gradient(150deg,
+    color-mix(in srgb, var(--tierc,#c9a227) 45%, #191815),
+    color-mix(in srgb, var(--tierc,#c9a227) 10%, #191815));
+  box-shadow:inset 0 1px 0 #ffffff30, inset 0 -8px 16px #00000059,
+    0 2cqw 8cqw #00000073;
   display:grid;place-items:center;
 }
-.card-back .backround{text-align:center}
-.card-back .backround b{font-size:clamp(12px,5cqw,17px);font-weight:700;letter-spacing:-.2px}
-.card-back .backround small{font-size:10px;color:var(--faint);display:block;margin-top:4px}
+.card-back .cb-emblem b{
+  transform:rotate(-45deg);
+  font-size:14cqw;font-weight:800;color:#f2f0e8;
+  text-shadow:0 1px 4px #00000066;
+}
+.card-back .cb-word{
+  position:absolute;bottom:8cqw;left:0;right:0;text-align:center;
+  font-size:5cqw;font-weight:600;letter-spacing:.32em;text-transform:uppercase;
+  color:#b8b7ae;
+}
 /* --- card front --- */
 .card-front{
   transform:rotateY(180deg);
@@ -211,7 +267,7 @@ nav.hidden{display:none}
 }
 /* mini (thumbnail) variant */
 .card3d.mini .cf-name,.card3d.mini .cf-meta,
-.card3d.mini .tagline,.card3d.mini .cf-bonus{display:none}
+.card3d.mini .tagline,.card3d.mini .cf-bonus,.card3d.mini .cb-word{display:none}
 .card3d.mini .cf-art{margin:4px 4px 0;border-radius:4px}
 .card3d.mini .cf-art .monogram{font-size:clamp(13px,34cqw,24px)}
 .card3d.mini .cf-value{font-size:8.5px;margin:4px 6px 5px;padding-top:3px}
@@ -298,7 +354,11 @@ nav.hidden{display:none}
   background:var(--ink);border-radius:12px 12px 0 0;
   will-change:transform;
 }
-.pack .p-brand{font-size:13px;font-weight:600;color:#fff}
+.pack .pack-stripe{ /* tier accent band under the tear strip */
+  position:absolute;top:56px;left:0;right:0;height:4px;
+  background:var(--tierc,#c9a227);opacity:.85;
+}
+.pack .p-brand{font-size:13px;font-weight:600;color:color-mix(in srgb, var(--tierc,#fff) 70%, #fff)}
 .pack .p-name{
   margin-top:auto;
   font-size:44px;font-weight:700;color:#fff;letter-spacing:-1px;line-height:1;
@@ -310,14 +370,24 @@ nav.hidden{display:none}
   border-top:1px solid #ffffff26;padding-top:10px;
   font-variant-numeric:tabular-nums;
 }
+/* tear strip: part of the wrapper, marked off by perforation lines */
 .tearstrip{
   position:absolute;top:20px;left:0;right:0;height:36px;z-index:3;
-  background:var(--bg);
-  border-top:1px solid #00000033;border-bottom:1px dashed #d9d8d0;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--gray);font-size:11px;font-weight:500;
+  background:#ffffff0a;
+  border-top:1px dashed #ffffff30;border-bottom:1px dashed #ffffff30;
+  display:flex;align-items:center;gap:10px;
+  padding:0 16px;
+  color:#ffffff66;font-size:9.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
   cursor:grab;touch-action:none;user-select:none;
   will-change:transform;
+}
+.tearstrip::before{ /* grip tab in the tier color */
+  content:'';flex:0 0 auto;width:22px;height:4px;border-radius:2px;
+  background:var(--tierc,#c9a227);
+}
+.tearstrip::after{ /* pull direction */
+  content:'› › ›';margin-left:auto;
+  font-size:12px;letter-spacing:.28em;color:#ffffff45;
 }
 .tearstrip:active{cursor:grabbing}
 
@@ -433,7 +503,8 @@ nav.hidden{display:none}
   transition:color .12s,border-color .12s;
 }
 .seg button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
-.confirm-bar{position:sticky;bottom:0;padding:14px 0 4px;text-align:center;background:linear-gradient(transparent,var(--bg) 40%)}
+.confirm-bar{position:sticky;bottom:0;padding:14px 0 4px;background:linear-gradient(transparent,var(--bg) 40%);
+  display:flex;gap:12px;justify-content:center;align-items:center}
 
 /* ============================================================
    VAULT
@@ -536,6 +607,7 @@ nav.hidden{display:none}
       <div class="tiers" id="tierGrid"></div>
       <p class="shop-fineprint">
         Odds and minimums are printed on every pack. Cards stay in a climate-controlled vault until you sell or ship.<br>
+        Long run, packs pay back less than they cost — rip for the thrill, not the yield.<br>
         Demo mockup, all data is fake.
       </p>
     </section>
@@ -558,6 +630,7 @@ nav.hidden{display:none}
       <div class="summary-line" id="resultSummary"></div>
       <div id="resultRows"></div>
       <div class="confirm-bar">
+        <button class="btn ghost" id="sellAll">Sell all</button>
         <button class="btn" id="confirmDecisions">Confirm</button>
       </div>
     </section>
@@ -672,39 +745,42 @@ const TEAMS = {
   LAR: ['#003594','#001a3d'], WAS:['#5a1414','#3a0d0d'], DAL:['#041e42','#7f9695'],
   KCR: ['#004687','#002a52'], IND:['#002c5f','#00193a'],
 };
-// rarity: c common / u uncommon / r rare / e epic / l legendary
+// rarity (c/u/r/e/l) is NOT stored per card: it is derived from value below
 const POOL = [
   // ---- commons ----
-  {player:'Rashee Rice',      team:'KC',  pos:'WR', sport:'NFL', year:2023, set:'Score Base',            parallel:'Base',              serial:null, grade:null, value:1.25, rarity:'c'},
-  {player:'Jaylen Waddle',    team:'MIA', pos:'WR', sport:'NFL', year:2024, set:'Donruss Base',          parallel:'Base',              serial:null, grade:null, value:2.00, rarity:'c'},
-  {player:'DeVonta Smith',    team:'PHI', pos:'WR', sport:'NFL', year:2024, set:'Prestige',              parallel:'Base',              serial:null, grade:null, value:1.50, rarity:'c'},
-  {player:'Jared Goff',       team:'DET', pos:'QB', sport:'NFL', year:2024, set:'Score Base',            parallel:'Base',              serial:null, grade:null, value:1.75, rarity:'c'},
-  {player:'Pete Alonso',      team:'NYM', pos:'1B', sport:'MLB', year:2024, set:'Topps Series 1',        parallel:'Base',              serial:null, grade:null, value:1.50, rarity:'c'},
-  {player:'Freddie Freeman',  team:'LAD', pos:'1B', sport:'MLB', year:2024, set:'Topps Series 2',        parallel:'Base',              serial:null, grade:null, value:2.50, rarity:'c'},
-  {player:'Adley Rutschman',  team:'BAL', pos:'C',  sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Base',              serial:null, grade:null, value:3.00, rarity:'c'},
-  {player:'Marcus Semien',    team:'TEX', pos:'2B', sport:'MLB', year:2024, set:'Bowman',                parallel:'Base',              serial:null, grade:null, value:1.00, rarity:'c'},
-  {player:'Julio Rodríguez',  team:'SEA', pos:'CF', sport:'MLB', year:2024, set:'Topps Big League',      parallel:'Base',              serial:null, grade:null, value:2.75, rarity:'c'},
+  {player:'Rashee Rice',      team:'KC',  pos:'WR', sport:'NFL', year:2023, set:'Score Base',            parallel:'Base',              serial:null, grade:null, value:1.25},
+  {player:'Jaylen Waddle',    team:'MIA', pos:'WR', sport:'NFL', year:2024, set:'Donruss Base',          parallel:'Base',              serial:null, grade:null, value:2.00},
+  {player:'DeVonta Smith',    team:'PHI', pos:'WR', sport:'NFL', year:2024, set:'Prestige',              parallel:'Base',              serial:null, grade:null, value:1.50},
+  {player:'Jared Goff',       team:'DET', pos:'QB', sport:'NFL', year:2024, set:'Score Base',            parallel:'Base',              serial:null, grade:null, value:1.75},
+  {player:'Pete Alonso',      team:'NYM', pos:'1B', sport:'MLB', year:2024, set:'Topps Series 1',        parallel:'Base',              serial:null, grade:null, value:1.50},
+  {player:'Freddie Freeman',  team:'LAD', pos:'1B', sport:'MLB', year:2024, set:'Topps Series 2',        parallel:'Base',              serial:null, grade:null, value:2.50},
+  {player:'Adley Rutschman',  team:'BAL', pos:'C',  sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Base',              serial:null, grade:null, value:3.00},
+  {player:'Marcus Semien',    team:'TEX', pos:'2B', sport:'MLB', year:2024, set:'Bowman',                parallel:'Base',              serial:null, grade:null, value:1.00},
+  {player:'Julio Rodríguez',  team:'SEA', pos:'CF', sport:'MLB', year:2024, set:'Topps Big League',      parallel:'Base',              serial:null, grade:null, value:2.75},
   // ---- uncommons ----
-  {player:'Bijan Robinson',   team:'ATL', pos:'RB', sport:'NFL', year:2023, set:'Prizm',                 parallel:'Red White & Blue',  serial:null, grade:null, value:9.00,  rarity:'u'},
-  {player:'Justin Jefferson', team:'MIN', pos:'WR', sport:'NFL', year:2024, set:'Mosaic',                parallel:'Green Mosaic',      serial:null, grade:null, value:12.00, rarity:'u'},
-  {player:'Corbin Carroll',   team:'ARI', pos:'OF', sport:'MLB', year:2023, set:'Topps Chrome',          parallel:'Refractor',         serial:null, grade:null, value:8.50,  rarity:'u'},
-  {player:'Gunnar Henderson', team:'BAL', pos:'SS', sport:'MLB', year:2023, set:'Topps Chrome',          parallel:'Sepia Refractor',   serial:null, grade:null, value:14.00, rarity:'u'},
-  {player:'Joe Burrow',       team:'CIN', pos:'QB', sport:'NFL', year:2024, set:'Donruss Optic',         parallel:'Holo',              serial:null, grade:null, value:16.00, rarity:'u'},
-  {player:'CeeDee Lamb',      team:'DAL', pos:'WR', sport:'NFL', year:2024, set:'Prizm',                 parallel:'Orange Lazer',      serial:null, grade:null, value:26.00, rarity:'u'},
-  {player:'Bobby Witt Jr.',   team:'KCR', pos:'SS', sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Blue Refractor',    serial:'045/150', grade:null, value:32.00, rarity:'u'},
+  {player:'Bijan Robinson',   team:'ATL', pos:'RB', sport:'NFL', year:2023, set:'Prizm',                 parallel:'Red White & Blue',  serial:null, grade:null, value:9.00},
+  {player:'Justin Jefferson', team:'MIN', pos:'WR', sport:'NFL', year:2024, set:'Mosaic',                parallel:'Green Mosaic',      serial:null, grade:null, value:12.00},
+  {player:'Corbin Carroll',   team:'ARI', pos:'OF', sport:'MLB', year:2023, set:'Topps Chrome',          parallel:'Refractor',         serial:null, grade:null, value:8.50},
+  {player:'Gunnar Henderson', team:'BAL', pos:'SS', sport:'MLB', year:2023, set:'Topps Chrome',          parallel:'Sepia Refractor',   serial:null, grade:null, value:14.00},
+  {player:'Joe Burrow',       team:'CIN', pos:'QB', sport:'NFL', year:2024, set:'Donruss Optic',         parallel:'Holo',              serial:null, grade:null, value:16.00},
+  {player:'CeeDee Lamb',      team:'DAL', pos:'WR', sport:'NFL', year:2024, set:'Prizm',                 parallel:'Orange Lazer',      serial:null, grade:null, value:26.00},
+  {player:'Bobby Witt Jr.',   team:'KCR', pos:'SS', sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Blue Refractor',    serial:'045/150', grade:null, value:32.00},
   // ---- rares ----
-  {player:'Anthony Richardson',team:'IND',pos:'QB', sport:'NFL', year:2023, set:'Select',                parallel:'Concourse Blue',    serial:'112/249', grade:null, value:38.00,  rarity:'r'},
-  {player:'Paul Skenes',      team:'PIT', pos:'P',  sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Purple Refractor',  serial:'184/299', grade:null, value:45.00,  rarity:'r'},
-  {player:'C.J. Stroud',      team:'HOU', pos:'QB', sport:'NFL', year:2023, set:'Prizm',                 parallel:'Blue Ice',          serial:'037/149', grade:null, value:65.00,  rarity:'r'},
-  {player:'Elly De La Cruz',  team:'CIN', pos:'SS', sport:'MLB', year:2023, set:'Bowman Chrome',         parallel:'Aqua Shimmer',      serial:'22/125',  grade:null, value:80.00,  rarity:'r'},
-  {player:'Jayden Daniels',   team:'WAS', pos:'QB', sport:'NFL', year:2024, set:'Select',                parallel:'Tri-Color',         serial:'091/199', grade:null, value:55.00,  rarity:'r'},
+  {player:'Anthony Richardson',team:'IND',pos:'QB', sport:'NFL', year:2023, set:'Select',                parallel:'Concourse Blue',    serial:'112/249', grade:null, value:38.00},
+  {player:'Paul Skenes',      team:'PIT', pos:'P',  sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Purple Refractor',  serial:'184/299', grade:null, value:45.00},
+  {player:'C.J. Stroud',      team:'HOU', pos:'QB', sport:'NFL', year:2023, set:'Prizm',                 parallel:'Blue Ice',          serial:'037/149', grade:null, value:65.00},
+  {player:'Elly De La Cruz',  team:'CIN', pos:'SS', sport:'MLB', year:2023, set:'Bowman Chrome',         parallel:'Aqua Shimmer',      serial:'22/125',  grade:null, value:80.00},
+  {player:'Jayden Daniels',   team:'WAS', pos:'QB', sport:'NFL', year:2024, set:'Select',                parallel:'Tri-Color',         serial:'091/199', grade:null, value:55.00},
   // ---- epics ----
-  {player:'Puka Nacua',       team:'LAR', pos:'WR', sport:'NFL', year:2023, set:'Prizm',                 parallel:'Silver RC',         serial:null,   grade:'PSA 9',  value:210.00, rarity:'e'},
-  {player:'Elly De La Cruz',  team:'CIN', pos:'SS', sport:'MLB', year:2023, set:'Bowman Chrome',         parallel:'RC Auto Gold',      serial:'31/99', grade:null,    value:475.00, rarity:'e'},
-  {player:'Jayden Daniels',   team:'WAS', pos:'QB', sport:'NFL', year:2024, set:'Optic',                 parallel:'RC Auto Holo',      serial:'08/49', grade:null,    value:390.00, rarity:'e'},
+  {player:'Puka Nacua',       team:'LAR', pos:'WR', sport:'NFL', year:2023, set:'Prizm',                 parallel:'Silver RC',         serial:null,   grade:'PSA 9',  value:210.00},
+  {player:'Elly De La Cruz',  team:'CIN', pos:'SS', sport:'MLB', year:2023, set:'Bowman Chrome',         parallel:'RC Auto Gold',      serial:'31/99', grade:null,    value:475.00},
+  {player:'Jayden Daniels',   team:'WAS', pos:'QB', sport:'NFL', year:2024, set:'Optic',                 parallel:'RC Auto Holo',      serial:'08/49', grade:null,    value:390.00},
+  {player:'Paul Skenes',      team:'PIT', pos:'P',  sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'RC Auto Refractor', serial:'088/199', grade:null,  value:160.00},
+  {player:'Bobby Witt Jr.',   team:'KCR', pos:'SS', sport:'MLB', year:2024, set:'Topps Chrome',          parallel:'Gold Auto',         serial:'21/50', grade:null,    value:275.00},
   // ---- legendaries (the big hits) ----
-  {player:'C.J. Stroud',      team:'HOU', pos:'QB', sport:'NFL', year:2023, set:'Panini Prizm',          parallel:'RC Auto Gold',      serial:'07/25', grade:null,     value:2850.00, rarity:'l'},
-  {player:'Shohei Ohtani',    team:'LAA', pos:'DH', sport:'MLB', year:2018, set:'Topps Chrome',          parallel:'Rookie',            serial:null,    grade:'PSA 10', value:3400.00, rarity:'l'},
+  {player:'C.J. Stroud',      team:'HOU', pos:'QB', sport:'NFL', year:2023, set:'Panini Prizm',          parallel:'RC Auto Gold',      serial:'07/25', grade:null,     value:2850.00},
+  {player:'Shohei Ohtani',    team:'LAA', pos:'DH', sport:'MLB', year:2018, set:'Topps Chrome',          parallel:'Rookie',            serial:null,    grade:'PSA 10', value:3400.00},
+  {player:'Jayden Daniels',   team:'WAS', pos:'QB', sport:'NFL', year:2024, set:'Prizm',                 parallel:'RC Auto Black',     serial:'3/10',  grade:null,     value:1600.00},
 ];
 const RARITY = {
   c:{label:'Base',     cls:'r-common'},
@@ -713,21 +789,31 @@ const RARITY = {
   e:{label:'Numbered', cls:'r-epic'},
   l:{label:'Chase',    cls:'r-legendary'},
 };
+/* Value decides tier: a card is banded by what it's worth. */
+const RARITY_ORDER = ['c','u','r','e','l'];
+const RARITY_BANDS = {c:5, u:35, r:150, e:1500, l:Infinity}; // upper bounds, $
+const rarityFor = v => RARITY_ORDER.find(k => v < RARITY_BANDS[k]) || 'l';
+POOL.forEach(c => c.rarity = rarityFor(c.value));
+
 /* Every pack = 1 card. `min` is the guaranteed floor value of that card.
-   `bonusChance` = odds the pack hides a free bonus card on top. */
+   `bonusChance` = odds the pack hides a free bonus card on top.
+   `weights` = rarity odds per pack, tuned so the expected payout
+   (incl. floor filtering and bonus cards) is ~82-88% of price —
+   the house keeps a 12-18% edge on every tier, long run.
+   `color` = the tier's accent, used on wrapper, icon, and card back. */
 const TIERS = [
-  {id:'starter', name:'Starter', price:5, min:2, bonusChance:.15, maxPull:150,
-   odds:[['base',82],['insert',12],['rare',5],['chase',1]],
-   chase:'Puka Nacua Silver RC', hitOdds:{r:.10, e:.02, l:.004}},
-  {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.15, maxPull:1200,
-   odds:[['insert',68],['rare',24],['numbered',6],['chase',2]],
-   chase:'Elly De La Cruz RC Auto /99', hitOdds:{r:.30, e:.10, l:.02}},
-  {id:'prime', name:'Prime', price:100, min:30, bonusChance:.18, maxPull:8500,
-   odds:[['insert',35],['rare',45],['numbered',15],['chase',5]],
-   chase:'C.J. Stroud RC Auto /25', hitOdds:{r:.65, e:.35, l:.10}},
-  {id:'grail', name:'Grail', price:500, min:250, bonusChance:.20, maxPull:25000,
-   odds:[['numbered',55],['chase',45]],
-   chase:'Shohei Ohtani PSA 10 rookie', hitOdds:{r:1, e:.75, l:.45}},
+  {id:'starter', name:'Starter', price:5, min:2, bonusChance:.10, color:'#4f7fa8',
+   weights:{c:.963, u:.03, r:.006, e:.001, l:0},
+   chase:'Puka Nacua Silver RC'},
+  {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.12, color:'#3f7f5c',
+   weights:{c:0, u:.9868, r:.012, e:.001, l:.0002},
+   chase:'Jayden Daniels RC Auto /10'},
+  {id:'prime', name:'Prime', price:100, min:30, bonusChance:.15, color:'#8a4fa8',
+   weights:{c:0, u:.076, r:.83, e:.09, l:.004},
+   chase:'C.J. Stroud RC Auto /25'},
+  {id:'grail', name:'Grail', price:500, min:250, bonusChance:.20, color:'#c9a227',
+   weights:{c:0, u:0, r:0, e:.985, l:.015},
+   chase:'Shohei Ohtani PSA 10 rookie'},
 ];
 
 /* ============================================================
@@ -796,7 +882,11 @@ function cardFrontHTML(c){
   </div>`;
 }
 function cardBackHTML(){
-  return `<div class="cardface card-back"><div class="backround"><div><b>Unsleeved</b><small>Mystery rip</small></div></div></div>`;
+  return `<div class="cardface card-back">
+    <div class="cb-frame"></div>
+    <div class="cb-emblem"><b>U</b></div>
+    <div class="cb-word">Unsleeved</div>
+  </div>`;
 }
 function miniCardHTML(c){ // pre-flipped small card
   return `<div class="card3d mini flipped"><div class="flip">${cardBackHTML()}${cardFrontHTML(c)}</div></div>`;
@@ -820,17 +910,24 @@ function renderBalance(){
 }
 
 /* ---------- shop ---------- */
+function fmtOdds(p){
+  if(p>=.005) return (Math.round(p*1000)/10)+'%';
+  return '1 in '+Math.round(1/p).toLocaleString('en-US');
+}
 function renderShop(){
   const g=$('#tierGrid'); g.innerHTML='';
   TIERS.forEach(t=>{
     const tile=el('div','tier');
-    const oddsText=t.odds.map(([n,p])=>`${p}% ${n}`).join(' · ');
+    const oddsText=RARITY_ORDER.filter(k=>t.effWeights[k]>0)
+      .map(k=>`${fmtOdds(t.effWeights[k])} ${RARITY[k].label.toLowerCase()}`).join(' · ');
+    const topKey=RARITY_ORDER.filter(k=>t.effWeights[k]>0).pop();
     tile.innerHTML=`
+      <div class="pack-icon" style="--tierc:${t.color}"><b>${t.name[0]}</b><i></i></div>
       <div class="tier-info">
         <h3>${t.name}</h3>
         <div class="meta">Min ${money(t.min)} · Max ${money(t.maxPull)} · Bonus card in ${Math.round(t.bonusChance*100)}% of packs</div>
         <div class="odds-line">${oddsText}</div>
-        <div class="chase-line">Chase: <b>${t.chase}</b></div>
+        <div class="chase-line">Chase: <b>${t.chase}</b> · ${fmtOdds(t.effWeights[topKey])}</div>
       </div>
       <div class="price-tag">$${t.price}</div>`;
     tile.addEventListener('click',()=>buyPack(t));
@@ -843,13 +940,26 @@ function renderShop(){
    ============================================================ */
 const byRarity = r => POOL.filter(c=>c.rarity===r);
 const pick = arr => arr[Math.random()*arr.length|0];
-const RARITY_ORDER = ['c','u','r','e','l'];
+/* Effective odds: weight on a rarity whose cards can't reach the tier's
+   floor slides up to the first rarity that can. Computed once at boot;
+   also feeds the odds printed in the shop and the advertised max pull. */
+function calibrateTiers(){
+  TIERS.forEach(t=>{
+    const eff={c:0,u:0,r:0,e:0,l:0};
+    RARITY_ORDER.forEach((k,idx)=>{
+      let i=idx;
+      while(i<RARITY_ORDER.length-1 && !byRarity(RARITY_ORDER[i]).some(c=>c.value>=t.min)) i++;
+      eff[RARITY_ORDER[i]] += t.weights[k]||0;
+    });
+    t.effWeights=eff;
+    t.maxPull=Math.max(...POOL.filter(c=>eff[c.rarity]>0 && c.value>=t.min).map(c=>c.value));
+  });
+}
+calibrateTiers();
 function rollRarity(tier){
-  const r=Math.random(), o=tier.hitOdds;
-  if(r < o.l) return 'l';
-  if(r < o.e) return 'e';
-  if(r < o.r) return 'r';
-  return Math.random()<.72 ? 'c' : 'u';
+  let r=Math.random();
+  for(const k of RARITY_ORDER){ r-=tier.effWeights[k]; if(r<0) return k; }
+  return RARITY_ORDER.filter(k=>tier.effWeights[k]>0).pop() || 'c';
 }
 /* pick a card of the rolled rarity worth at least `min`;
    escalate rarity until the floor is satisfiable */
@@ -950,9 +1060,10 @@ function renderRipPack(){
   const wrap=el('div','pack-wrap');
   wrap.innerHTML=`
     <div class="pack-tilt"><div class="pack-swing">
-      <div class="pack">
+      <div class="pack" style="--tierc:${tier.color}">
         <div class="pack-top"></div>
-        <div class="tearstrip" id="tearstrip">Pull to tear</div>
+        <div class="tearstrip" id="tearstrip">Tear here</div>
+        <div class="pack-stripe"></div>
         <div class="p-brand">Unsleeved</div>
         <div class="p-name">${tier.name}</div>
         <div class="p-sub">One card inside</div>
@@ -1043,7 +1154,7 @@ function renderRevealCard(keepStage){
   wrap.innerHTML = `
     ${remaining>0?'<div class="stack-ghost g1"></div>':''}
     <div class="card-tilt">
-      <div class="reveal-card card3d live" id="revealCard">
+      <div class="reveal-card card3d live" id="revealCard" style="--tierc:${rip.tier.color}">
         <div class="glowring"></div>
         <div class="flip">${cardBackHTML()}${cardFrontHTML(c)}</div>
         <div class="glare-wrap"><div class="glare"></div></div>
@@ -1161,6 +1272,7 @@ function renderResults(){
     <div class="cell"><b>${money(rip.tier.price)}</b><span>Spent</span></div>
     <div class="cell"><b>${money(pulled)}</b><span>Pulled</span></div>
     <div class="cell"><b>${net>=0?'+':'−'}${money(Math.abs(net))}</b><span>Net</span></div>`;
+  $('#sellAll').textContent=`Sell all for ${money(pulled)}`;
   const host=$('#resultRows'); host.innerHTML='';
   rip.cards.forEach(c=>{
     const row=el('div','result-row');
@@ -1189,6 +1301,11 @@ function renderResults(){
     host.appendChild(row);
   });
 }
+$('#sellAll').addEventListener('click',()=>{
+  state.rip.cards.forEach(c=>c.decision='sell');
+  playSound('cash'); haptic(8);
+  renderResults();
+});
 $('#confirmDecisions').addEventListener('click',()=>{
   const rip=state.rip;
   const sold=rip.cards.filter(c=>c.decision==='sell');
