@@ -4,10 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Unsleeved — Rip real cards</title>
+<link rel="stylesheet" href="assets/atropos.min.css">
 <style>
+/* Space Grotesk (OFL), vendored via @fontsource/space-grotesk */
+@font-face{
+  font-family:'Space Grotesk';font-style:normal;font-weight:500;font-display:swap;
+  src:url('assets/fonts/space-grotesk-latin-500-normal.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Space Grotesk';font-style:normal;font-weight:700;font-display:swap;
+  src:url('assets/fonts/space-grotesk-latin-700-normal.woff2') format('woff2');
+}
 /* ============================================================
    UNSLEEVED — quiet commerce mockup
-   Single file + vendored libs (GSAP, canvas-confetti).
+   Single file + vendored libs: GSAP (choreography), Atropos
+   (3D tilt + layered parallax), canvas-confetti (celebrations),
+   Space Grotesk via Fontsource (display face), Lucide (icons).
    No backend. All data is fake.
    Every pack: 1 card, guaranteed floor value, occasional bonus.
 
@@ -23,7 +35,8 @@
      wrapper, preview icon, and card back
    - color appears only inside card artwork and tier accents
    Motion rules:
-   - the rip is a 3D scene: pointer tilt, foil glare, real depth
+   - the rip is a 3D scene: Atropos pointer tilt with parallax
+     layers (data-atropos-offset), foil glare, real depth
    - GSAP drives choreography; canvas-confetti drives celebrations
    ============================================================ */
 :root{
@@ -36,7 +49,14 @@
   --gold-bright:#c9a227;
   --frame-w:430px;
   --font:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-disp:'Space Grotesk', var(--font);
 }
+/* display face for headings, pack names, card names, monograms */
+.brand h1,.view h2,.tier h3,.price-tag,.pack .p-name,.pack .p-brand,
+.cf-art .monogram,.cf-name,.hit-banner,.balance-slab b,.modal h3,
+.card-back .cb-word,.card-back .cb-emblem b{font-family:var(--font-disp)}
+/* Atropos handles the 3D scene; let real 3D (card flip) escape the inner */
+.atropos-inner{overflow:visible;transform-style:preserve-3d}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{
@@ -149,13 +169,13 @@ nav.hidden{display:none}
   background:var(--ink);
   background-image:repeating-linear-gradient(115deg, transparent 0 5px, rgba(255,255,255,.03) 5px 6px);
   border-radius:7px;overflow:hidden;
-  display:flex;align-items:flex-end;padding:6px 8px;
+  display:grid;place-items:center;
 }
 .pack-icon::before{ /* tear strip */
   content:'';position:absolute;top:8px;left:0;right:0;height:5px;
   background:var(--tierc,#c9a227);opacity:.9;
 }
-.pack-icon b{font-size:17px;font-weight:800;color:#fff;line-height:1}
+.pack-icon svg{width:18px;height:18px;stroke:var(--tierc,#c9a227)}
 .pack-icon i{
   position:absolute;bottom:8px;right:8px;width:6px;height:6px;
   border-radius:50%;background:var(--tierc,#c9a227);
@@ -196,6 +216,9 @@ nav.hidden{display:none}
   border:1px solid #ffffff12;
   pointer-events:none;
 }
+/* parallax lift carrier: Atropos owns its transform, so the
+   emblem's own rotate lives one level down */
+.card-back .cb-emblem-lift{display:grid;place-items:center}
 .card-back .cb-emblem{ /* filled, softly lit — no border */
   width:34cqw;aspect-ratio:1;transform:rotate(45deg);
   border-radius:16%;
@@ -318,8 +341,8 @@ nav.hidden{display:none}
 .hint{font-size:12px;color:var(--faint);animation:hintPulse 1.6s ease-in-out infinite}
 @keyframes hintPulse{0%,100%{opacity:.5}50%{opacity:1}}
 
-/* tilt / swing layers */
-.pack-tilt,.pack-swing,.card-tilt{width:100%;height:100%;transform-style:preserve-3d;will-change:transform}
+/* idle swing layer (pointer tilt itself is Atropos) */
+.pack-swing{width:100%;height:100%;transform-style:preserve-3d;will-change:transform}
 
 /* foil glare, driven by pointer tilt */
 .glare-wrap{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;z-index:4}
@@ -359,6 +382,8 @@ nav.hidden{display:none}
   background:var(--tierc,#c9a227);opacity:.85;
 }
 .pack .p-brand{font-size:13px;font-weight:600;color:color-mix(in srgb, var(--tierc,#fff) 70%, #fff)}
+.pack .p-icon{position:absolute;top:72px;right:22px;opacity:.85}
+.pack .p-icon svg{width:22px;height:22px;stroke:var(--tierc,#c9a227)}
 .pack .p-name{
   margin-top:auto;
   font-size:44px;font-weight:700;color:#fff;letter-spacing:-1px;line-height:1;
@@ -696,6 +721,7 @@ nav.hidden{display:none}
 
 <script src="assets/gsap.min.js"></script>
 <script src="assets/confetti.min.js"></script>
+<script src="assets/atropos.min.js"></script>
 <script>
 /* ============================================================
    SOUND HOOKS — wire real audio here later.
@@ -735,6 +761,13 @@ function popBig(){
 /* ============================================================
    FAKE DATA
    ============================================================ */
+/* Lucide icons (ISC), vendored from lucide-static — one per pack tier */
+const ICONS = {
+  zap:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>',
+  sparkles:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>',
+  gem:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3 8 9l4 13 4-13-2.5-6"/><path d="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z"/><path d="M2 9h20"/></svg>',
+  crown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>',
+};
 const TEAMS = {
   KC:  ['#c9243f','#7d1426'], MIA:['#008e97','#005778'], PHI:['#004c54','#002b30'],
   DET: ['#0076b6','#00466d'], MIN:['#4f2683','#31184f'], HOU:['#03202f','#8a1f2c'],
@@ -802,16 +835,16 @@ POOL.forEach(c => c.rarity = rarityFor(c.value));
    the house keeps a 12-18% edge on every tier, long run.
    `color` = the tier's accent, used on wrapper, icon, and card back. */
 const TIERS = [
-  {id:'starter', name:'Starter', price:5, min:2, bonusChance:.10, color:'#4f7fa8',
+  {id:'starter', name:'Starter', price:5, min:2, bonusChance:.10, color:'#4f7fa8', icon:'zap',
    weights:{c:.963, u:.03, r:.006, e:.001, l:0},
    chase:'Puka Nacua Silver RC'},
-  {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.12, color:'#3f7f5c',
+  {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.12, color:'#3f7f5c', icon:'sparkles',
    weights:{c:0, u:.9868, r:.012, e:.001, l:.0002},
    chase:'Jayden Daniels RC Auto /10'},
-  {id:'prime', name:'Prime', price:100, min:30, bonusChance:.15, color:'#8a4fa8',
+  {id:'prime', name:'Prime', price:100, min:30, bonusChance:.15, color:'#8a4fa8', icon:'gem',
    weights:{c:0, u:.076, r:.83, e:.09, l:.004},
    chase:'C.J. Stroud RC Auto /25'},
-  {id:'grail', name:'Grail', price:500, min:250, bonusChance:.20, color:'#c9a227',
+  {id:'grail', name:'Grail', price:500, min:250, bonusChance:.20, color:'#c9a227', icon:'crown',
    weights:{c:0, u:0, r:0, e:.985, l:.015},
    chase:'Shohei Ohtani PSA 10 rookie'},
 ];
@@ -873,8 +906,8 @@ function cardFrontHTML(c){
   return `<div class="cardface card-front ${r.cls}" style="--team1:${t1};--team2:${t2}">
     ${c.bonus ? `<div class="cf-bonus">Bonus</div>` : ''}
     <div class="cf-art">
-      <span class="tagline">${c.pos} · ${c.sport}</span>
-      <div class="monogram">${initials}</div>
+      <span class="tagline" data-atropos-offset="2">${c.pos} · ${c.sport}</span>
+      <div class="monogram" data-atropos-offset="4">${initials}</div>
     </div>
     <div class="cf-name">${c.player}</div>
     <div class="cf-meta">${c.year} ${c.set} · ${bits.join(' · ')} · ${rarityBit}</div>
@@ -883,9 +916,9 @@ function cardFrontHTML(c){
 }
 function cardBackHTML(){
   return `<div class="cardface card-back">
-    <div class="cb-frame"></div>
-    <div class="cb-emblem"><b>U</b></div>
-    <div class="cb-word">Unsleeved</div>
+    <div class="cb-frame" data-atropos-offset="-1"></div>
+    <div class="cb-emblem-lift" data-atropos-offset="5"><div class="cb-emblem"><b>U</b></div></div>
+    <div class="cb-word" data-atropos-offset="2">Unsleeved</div>
   </div>`;
 }
 function miniCardHTML(c){ // pre-flipped small card
@@ -922,7 +955,7 @@ function renderShop(){
       .map(k=>`${fmtOdds(t.effWeights[k])} ${RARITY[k].label.toLowerCase()}`).join(' · ');
     const topKey=RARITY_ORDER.filter(k=>t.effWeights[k]>0).pop();
     tile.innerHTML=`
-      <div class="pack-icon" style="--tierc:${t.color}"><b>${t.name[0]}</b><i></i></div>
+      <div class="pack-icon" style="--tierc:${t.color}">${ICONS[t.icon]}<i></i></div>
       <div class="tier-info">
         <h3>${t.name}</h3>
         <div class="meta">Min ${money(t.min)} · Max ${money(t.maxPull)} · Bonus card in ${Math.round(t.bonusChance*100)}% of packs</div>
@@ -996,29 +1029,19 @@ function buyPack(tier){
 /* ============================================================
    RIP EXPERIENCE — GSAP-driven 3D scene
    ============================================================ */
-/* Pointer tilt: the object leans toward your finger, foil glare
-   sweeps the other way. This runs on pack and card alike. */
+/* Pointer tilt: Atropos drives the 3D lean + layered parallax
+   (elements with data-atropos-offset float at different depths);
+   our foil glare sweeps the other way via its onRotate hook. */
 let tiltCtl = null;
-function enableTilt(target, glare, maxX, maxY){
+function enableTilt(rootEl, glare, maxX, maxY){
   destroyTilt();
-  const stage=$('#ripStage');
-  const rx=gsap.quickTo(target,'rotationX',{duration:.55,ease:'power3.out'});
-  const ry=gsap.quickTo(target,'rotationY',{duration:.55,ease:'power3.out'});
-  const gx=glare ? gsap.quickTo(glare,'xPercent',{duration:.55,ease:'power3.out'}) : null;
-  const move=e=>{
-    const r=stage.getBoundingClientRect();
-    const nx=((e.clientX-r.left)/r.width -.5)*2;
-    const ny=((e.clientY-r.top)/r.height -.5)*2;
-    rx(-ny*maxX); ry(nx*maxY);
-    if(gx) gx(nx*45);
-  };
-  const leave=()=>{ rx(0); ry(0); if(gx) gx(0); };
-  stage.addEventListener('pointermove',move);
-  stage.addEventListener('pointerleave',leave);
-  tiltCtl={destroy(){
-    stage.removeEventListener('pointermove',move);
-    stage.removeEventListener('pointerleave',leave);
-  }};
+  const gx=glare ? gsap.quickTo(glare,'xPercent',{duration:.5,ease:'power3.out'}) : null;
+  tiltCtl=Atropos({
+    el:rootEl,
+    activeOffset:0, shadow:false, highlight:false,
+    rotateXMax:maxX, rotateYMax:maxY, duration:350,
+    onRotate(x,y){ if(gx) gx((y/maxY)*45); },
+  });
 }
 function destroyTilt(){ if(tiltCtl){ tiltCtl.destroy(); tiltCtl=null; } }
 
@@ -1057,27 +1080,30 @@ function renderRipPack(){
   $('#ripTitle').textContent = tier.name;
   ripDots();
   const stage=$('#ripStage'); stage.classList.remove('dim'); stage.innerHTML='';
-  const wrap=el('div','pack-wrap');
+  const wrap=el('div','pack-wrap atropos');
   wrap.innerHTML=`
-    <div class="pack-tilt"><div class="pack-swing">
-      <div class="pack" style="--tierc:${tier.color}">
-        <div class="pack-top"></div>
-        <div class="tearstrip" id="tearstrip">Tear here</div>
-        <div class="pack-stripe"></div>
-        <div class="p-brand">Unsleeved</div>
-        <div class="p-name">${tier.name}</div>
-        <div class="p-sub">One card inside</div>
-        <div class="p-count">Min ${money(tier.min)} · Max ${money(tier.maxPull)}</div>
-        <div class="glare-wrap"><div class="glare"></div></div>
+    <div class="atropos-scale"><div class="atropos-rotate"><div class="atropos-inner">
+      <div class="pack-swing">
+        <div class="pack" style="--tierc:${tier.color}">
+          <div class="pack-top"></div>
+          <div class="tearstrip" id="tearstrip">Tear here</div>
+          <div class="pack-stripe"></div>
+          <div class="p-icon" data-atropos-offset="6">${ICONS[tier.icon]}</div>
+          <div class="p-brand" data-atropos-offset="3">Unsleeved</div>
+          <div class="p-name" data-atropos-offset="8">${tier.name}</div>
+          <div class="p-sub" data-atropos-offset="4">One card inside</div>
+          <div class="p-count" data-atropos-offset="2">Min ${money(tier.min)} · Max ${money(tier.maxPull)}</div>
+          <div class="glare-wrap"><div class="glare"></div></div>
+        </div>
       </div>
-    </div></div>`;
+    </div></div></div>`;
   stage.appendChild(wrap);
   const swing=wrap.querySelector('.pack-swing');
   // idle: slow 3D sway + bob, like the pack is waiting for you
   gsap.to(swing,{rotationY:7,duration:2.8,yoyo:true,repeat:-1,ease:'sine.inOut'});
   gsap.to(swing,{y:-8,duration:2.1,yoyo:true,repeat:-1,ease:'sine.inOut'});
   gsap.from(wrap,{y:30,opacity:0,duration:.45,ease:'power2.out'});
-  enableTilt(wrap.querySelector('.pack-tilt'), wrap.querySelector('.glare'), 7, 10);
+  enableTilt(wrap, wrap.querySelector('.glare'), 7, 10);
   $('#ripFoot').innerHTML=`<div class="hint">Pull the strip, or just hit the button</div>
     <div style="margin-top:8px"><button class="btn" id="autoTear">Rip it</button></div>`;
   initTear(wrap);
@@ -1150,21 +1176,21 @@ function renderRevealCard(keepStage){
     stage.innerHTML='';
   }
   const remaining = rip.cards.length-rip.idx-1;
-  const wrap=el('div','reveal-wrap');
+  const wrap=el('div','reveal-wrap atropos');
   wrap.innerHTML = `
-    ${remaining>0?'<div class="stack-ghost g1"></div>':''}
-    <div class="card-tilt">
+    <div class="atropos-scale"><div class="atropos-rotate"><div class="atropos-inner">
+      ${remaining>0?'<div class="stack-ghost g1"></div>':''}
       <div class="reveal-card card3d live" id="revealCard" style="--tierc:${rip.tier.color}">
         <div class="glowring"></div>
         <div class="flip">${cardBackHTML()}${cardFrontHTML(c)}</div>
         <div class="glare-wrap"><div class="glare"></div></div>
       </div>
-    </div>`;
+    </div></div></div>`;
   stage.appendChild(wrap);
   const card=$('#revealCard');
   gsap.fromTo(card,{y:46,scale:.92,opacity:0},{y:0,scale:1,opacity:1,duration:.55,ease:'back.out(1.5)'});
   // the card leans toward your finger while it waits, face down
-  enableTilt(wrap.querySelector('.card-tilt'), wrap.querySelector('.glare'), 9, 12);
+  enableTilt(wrap, wrap.querySelector('.glare'), 9, 12);
   playSound('shuffle'); haptic(12);
   if(c.bonus){
     playSound('bonus'); pulse(true);
@@ -1174,7 +1200,9 @@ function renderRevealCard(keepStage){
   $('#ripFoot').innerHTML=`
     <div class="value-ticker">Pack value so far <b>${money(rip.revealedValue)}</b></div>
     <div class="hint">${c.bonus ? 'A free extra card. Tap to reveal.' : 'Tap the card to reveal'}</div>`;
-  card.addEventListener('click',()=>flipCard(card,c),{once:true});
+  // listen on the wrap: the tilting card can shift between pointer
+  // down and up, which would retarget a click bound to the card itself
+  wrap.addEventListener('click',()=>flipCard(card,c),{once:true});
 }
 
 function flipCard(card, c){
