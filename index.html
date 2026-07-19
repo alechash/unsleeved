@@ -17,9 +17,11 @@
 }
 /* ============================================================
    UNSLEEVED — quiet commerce mockup
-   Single file + vendored libs: GSAP (choreography), Atropos
-   (3D tilt + layered parallax), canvas-confetti (celebrations),
-   Space Grotesk via Fontsource (display face), Lucide (icons).
+   Single file + vendored libs: three.js (the pack is a real WebGL
+   object: foil material, studio lighting, physical tear), GSAP
+   (choreography), Atropos (card tilt + layered parallax),
+   canvas-confetti (celebrations), Space Grotesk via Fontsource
+   (display face), Lucide (icons).
    No backend. All data is fake.
    Every pack: 1 card, guaranteed floor value, occasional bonus.
 
@@ -331,6 +333,9 @@ nav.hidden{display:none}
   overflow:hidden;
   perspective:1100px;
   touch-action:none;
+}
+.rip-stage canvas.pack3d{
+  position:absolute;inset:0;z-index:5;display:block;touch-action:none;
 }
 .rip-stage.dim::before{
   content:'';position:absolute;inset:0;background:#1414120a;
@@ -722,6 +727,7 @@ nav.hidden{display:none}
 <script src="assets/gsap.min.js"></script>
 <script src="assets/confetti.min.js"></script>
 <script src="assets/atropos.min.js"></script>
+<script src="assets/three.bundle.min.js"></script>
 <script>
 /* ============================================================
    SOUND HOOKS — wire real audio here later.
@@ -933,7 +939,7 @@ function show(view){
   $('#view-'+view).classList.add('active');
   $$('#tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.nav===view));
   $('#tabbar').classList.toggle('hidden', view==='rip' || view==='results');
-  if(view!=='rip') destroyTilt();
+  if(view!=='rip'){ destroyTilt(); Pack3D.unmount(); }
   if(view==='vault') renderVault();
   if(view==='wallet') renderWallet();
 }
@@ -1027,6 +1033,307 @@ function buyPack(tier){
 }
 
 /* ============================================================
+   PACK3D — the pack as a real object (three.js)
+   WebGL scene: a foil-material pack under studio lighting
+   (RoomEnvironment), printed with canvas textures so the type
+   stays Space Grotesk, torn apart physically in 3D. GSAP drives
+   the choreography. Falls back to the DOM pack when WebGL is
+   unavailable.
+   ============================================================ */
+const Pack3D=(()=>{
+  const W=1.72, H=2.5, D=.14, SLICE=.14, STRIP=.25, BODY=H-SLICE-STRIP;
+  const SYS="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+  let renderer=null, envTex=null, C=null;
+
+  function supported(){
+    if(!window.THREE) return false;
+    if(renderer) return true;
+    try{
+      const c=document.createElement('canvas');
+      return !!(c.getContext('webgl2')||c.getContext('webgl'));
+    }catch(e){ return false; }
+  }
+  function ensureRenderer(){
+    if(!renderer){
+      renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+      renderer.toneMapping=THREE.ACESFilmicToneMapping;
+      renderer.outputColorSpace=THREE.SRGBColorSpace;
+      renderer.domElement.className='pack3d';
+      const pm=new THREE.PMREMGenerator(renderer);
+      envTex=pm.fromScene(new THREE.RoomEnvironment(),.04).texture;
+      pm.dispose();
+    }
+    return renderer;
+  }
+  const mix=(a,b,f)=>{ // blend two #rrggbb colors
+    const A=parseInt(a.slice(1),16), B=parseInt(b.slice(1),16);
+    const ch=s=>(((A>>s&255)*(1-f)+(B>>s&255)*f)|0);
+    return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+  };
+  function canvasTex(w,h,draw){
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    const tex=new THREE.CanvasTexture(cv);
+    tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=4;
+    const redraw=()=>{
+      const g=cv.getContext('2d'); g.clearRect(0,0,w,h); draw(g,w,h);
+      tex.needsUpdate=true;
+    };
+    redraw();
+    return {tex,redraw};
+  }
+  /* wrapper print, drawn at ~300px per world unit */
+  function drawBody(g,w,h,tier){
+    const u=w/520;
+    g.fillStyle=tier.color; g.globalAlpha=.85; g.fillRect(0,0,w,10*u); g.globalAlpha=1;
+    g.fillStyle=mix(tier.color,'#ffffff',.45);
+    g.font=`500 ${28*u}px 'Space Grotesk',sans-serif`;
+    g.fillText('Unsleeved',40*u,88*u);
+    if(C&&C.icon) g.drawImage(C.icon,w-92*u,50*u,48*u,48*u);
+    g.fillStyle='#fff';
+    g.font=`700 ${92*u}px 'Space Grotesk',sans-serif`;
+    g.fillText(C&&C.tier?C.tier.name:tier.name,36*u,468*u);
+    g.fillStyle='rgba(255,255,255,.45)';
+    g.font=`500 ${25*u}px 'Space Grotesk',sans-serif`;
+    g.fillText('One card inside',40*u,514*u);
+    g.strokeStyle='rgba(255,255,255,.15)'; g.lineWidth=1.5*u;
+    g.beginPath(); g.moveTo(40*u,564*u); g.lineTo(w-40*u,564*u); g.stroke();
+    g.fillStyle='rgba(255,255,255,.6)';
+    g.font=`500 ${23*u}px ${SYS}`;
+    g.fillText(`Min ${money(tier.min)} · Max ${money(tier.maxPull)}`,40*u,604*u);
+  }
+  function drawStrip(g,w,h,tier){
+    const u=w/520;
+    const dash=y=>{
+      g.setLineDash([10*u,7*u]); g.strokeStyle='rgba(255,255,255,.3)'; g.lineWidth=2*u;
+      g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); g.setLineDash([]);
+    };
+    dash(2*u); dash(h-2*u);
+    g.fillStyle=tier.color;
+    g.beginPath(); g.roundRect(32*u,h/2-5*u,46*u,10*u,5*u); g.fill();
+    g.fillStyle='rgba(255,255,255,.85)';
+    g.font=`600 ${19*u}px 'Space Grotesk',sans-serif`;
+    if('letterSpacing' in g) g.letterSpacing=`${4*u}px`;
+    g.fillText('TEAR HERE',102*u,h/2+7*u);
+    if('letterSpacing' in g) g.letterSpacing='0px';
+    g.fillStyle='rgba(255,255,255,.5)';
+    g.font=`600 ${26*u}px ${SYS}`;
+    g.fillText('› › ›',w-112*u,h/2+9*u);
+  }
+
+  function mount(stageEl, tier, cbs){
+    unmount();
+    const r=ensureRenderer();
+    const rect=stageEl.getBoundingClientRect();
+    r.setPixelRatio(Math.min(devicePixelRatio||1,2));
+    r.setSize(rect.width,rect.height);
+    stageEl.appendChild(r.domElement);
+    r.domElement.style.opacity=1;
+    r.domElement.style.pointerEvents='auto';
+
+    const scene=new THREE.Scene();
+    scene.environment=envTex;
+    const camera=new THREE.PerspectiveCamera(32,rect.width/rect.height,.1,50);
+    camera.position.set(0,-.04,6.4);
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+    const key=new THREE.DirectionalLight(0xffffff,1.4);
+    key.position.set(2.5,3.5,4);
+    scene.add(key);
+
+    const foil=new THREE.MeshPhysicalMaterial({
+      color:0x171613, metalness:.9, roughness:.48,
+      clearcoat:.55, clearcoatRoughness:.3, envMapIntensity:1.15, transparent:true,
+    });
+    const foilStrip=foil.clone(); foilStrip.color=new THREE.Color(0x201f1b);
+    foilStrip.metalness=.55; foilStrip.roughness=.6; foilStrip.envMapIntensity=.7; // matte enough for the print to read
+    const foilSlice=foil.clone();
+
+    const tiltG=new THREE.Group(), swayG=new THREE.Group(), packG=new THREE.Group();
+    scene.add(tiltG); tiltG.add(swayG); swayG.add(packG);
+
+    // lower body (everything below the tear strip) + its print
+    const bodyG=new THREE.Group();
+    bodyG.position.y=H/2-SLICE-STRIP-BODY/2;
+    const body=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,BODY,D,3,.06),foil);
+    const bodyPrint=canvasTex(520,Math.round(BODY/W*520),(g,w,h)=>drawBody(g,w,h,tier));
+    const bodyPlane=new THREE.Mesh(
+      new THREE.PlaneGeometry(W-.06,BODY-.06),
+      new THREE.MeshBasicMaterial({map:bodyPrint.tex,transparent:true}));
+    bodyPlane.position.z=D/2+.004;
+    bodyG.add(body,bodyPlane);
+
+    // torn-off top slice, hinged at its bottom edge
+    const sliceG=new THREE.Group(); sliceG.position.y=H/2-SLICE;
+    const slice=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,SLICE,D,2,.05),foilSlice);
+    slice.position.y=SLICE/2;
+    sliceG.add(slice);
+
+    // tear strip (slightly proud of the wrapper) + its print
+    const stripG=new THREE.Group(); stripG.position.y=H/2-SLICE-STRIP/2;
+    const strip=new THREE.Mesh(new THREE.RoundedBoxGeometry(W+.02,STRIP,D+.03,2,.04),foilStrip);
+    const stripPrint=canvasTex(520,Math.round(STRIP/W*520),(g,w,h)=>drawStrip(g,w,h,tier));
+    const stripPlane=new THREE.Mesh(
+      new THREE.PlaneGeometry(W,STRIP-.02),
+      new THREE.MeshBasicMaterial({map:stripPrint.tex,transparent:true}));
+    stripPlane.position.z=(D+.03)/2+.004;
+    stripG.add(strip,stripPlane);
+
+    packG.add(bodyG,sliceG,stripG);
+
+    // soft ground shadow
+    const shTex=canvasTex(256,256,g=>{
+      const gr=g.createRadialGradient(128,128,10,128,128,120);
+      gr.addColorStop(0,'rgba(0,0,0,.35)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr; g.fillRect(0,0,256,256);
+    });
+    const shadow=new THREE.Mesh(
+      new THREE.PlaneGeometry(2.3,.9),
+      new THREE.MeshBasicMaterial({map:shTex.tex,transparent:true,depthWrite:false}));
+    shadow.rotation.x=-Math.PI/2; shadow.position.y=-1.62;
+    scene.add(shadow);
+
+    C={stageEl,scene,camera,tier,cbs,raf:0,torn:false,icon:null,pxPerWorld:1,
+       tiltG,swayG,packG,bodyG,sliceG,stripG,shadow,
+       mats:[foil,foilStrip,foilSlice,bodyPlane.material,stripPlane.material],
+       redraws:[bodyPrint.redraw,stripPrint.redraw],
+       listeners:[],sway:[]};
+
+    // tier icon + display font load in async — reprint when ready
+    const svg=ICONS[tier.icon]
+      .replace('<svg','<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"')
+      .replace(/currentColor/g,mix(tier.color,'#ffffff',.15));
+    const img=new Image();
+    img.onload=()=>{ if(C){ C.icon=img; bodyPrint.redraw(); } };
+    img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+    if(document.fonts&&document.fonts.load){
+      Promise.all([
+        document.fonts.load("700 92px 'Space Grotesk'"),
+        document.fonts.load("500 28px 'Space Grotesk'"),
+      ]).then(()=>{ if(C) C.redraws.forEach(f=>f()); });
+    }
+
+    // entrance + idle sway
+    gsap.fromTo(packG.position,{y:-.45},{y:0,duration:.5,ease:'power2.out'});
+    gsap.fromTo(r.domElement,{opacity:0},{opacity:1,duration:.35});
+    C.sway=[
+      gsap.to(swayG.rotation,{y:.12,duration:2.8,yoyo:true,repeat:-1,ease:'sine.inOut'}),
+      gsap.to(swayG.position,{y:.07,duration:2.1,yoyo:true,repeat:-1,ease:'sine.inOut'}),
+    ];
+    const rx=gsap.quickTo(tiltG.rotation,'x',{duration:.55,ease:'power3.out'});
+    const ry=gsap.quickTo(tiltG.rotation,'y',{duration:.55,ease:'power3.out'});
+
+    // px per world unit at the pack plane (for strip dragging)
+    {
+      const v0=new THREE.Vector3(0,0,D/2).project(camera);
+      const v1=new THREE.Vector3(1,0,D/2).project(camera);
+      C.pxPerWorld=(v1.x-v0.x)/2*rect.width;
+    }
+
+    const on=(el,t,f)=>{ el.addEventListener(t,f); C.listeners.push([el,t,f]); };
+    const ray=new THREE.Raycaster();
+    const ndc=e=>{
+      const b=r.domElement.getBoundingClientRect();
+      return new THREE.Vector2(
+        ((e.clientX-b.left)/b.width)*2-1,
+        -(((e.clientY-b.top)/b.height)*2-1));
+    };
+    let dragging=false, x0=0, lastBuzz=0;
+    on(stageEl,'pointermove',e=>{
+      if(dragging||C.torn) return;
+      const b=stageEl.getBoundingClientRect();
+      const nx=((e.clientX-b.left)/b.width-.5)*2;
+      const ny=((e.clientY-b.top)/b.height-.5)*2;
+      rx(-ny*.14); ry(nx*.2);
+    });
+    on(stageEl,'pointerleave',()=>{ if(!C.torn){ rx(0); ry(0); } });
+    on(r.domElement,'pointerdown',e=>{
+      if(C.torn) return;
+      ray.setFromCamera(ndc(e),camera);
+      if(ray.intersectObjects(stripG.children,true).length){
+        dragging=true; x0=e.clientX; lastBuzz=0;
+        C.sway.forEach(t=>t.pause());
+        gsap.to(swayG.rotation,{y:0,duration:.25,ease:'power2.out'});
+        gsap.to(swayG.position,{y:0,duration:.25,ease:'power2.out'});
+        r.domElement.setPointerCapture(e.pointerId);
+        cbs.onGrab&&cbs.onGrab();
+      }
+    });
+    on(r.domElement,'pointermove',e=>{
+      if(!dragging||C.torn) return;
+      const wx=Math.max(0,e.clientX-x0)/C.pxPerWorld;
+      const pct=Math.min(1,wx/(W*.62));
+      stripG.position.x=wx; stripG.rotation.z=-pct*.07;
+      packG.rotation.z=pct*.025;
+      if(pct-lastBuzz>.18){ lastBuzz=pct; cbs.onProgress&&cbs.onProgress(); }
+      if(pct>=1){ dragging=false; tear(); }
+    });
+    const drop=()=>{
+      if(!dragging) return; dragging=false;
+      gsap.to(stripG.position,{x:0,duration:.3,ease:'power2.out'});
+      gsap.to(stripG.rotation,{z:0,duration:.3,ease:'power2.out'});
+      gsap.timeline()
+        .to(packG.rotation,{z:-.02,duration:.09})
+        .to(packG.rotation,{z:.015,duration:.09})
+        .to(packG.rotation,{z:0,duration:.14});
+      C.sway.forEach(t=>t.resume());
+    };
+    on(r.domElement,'pointerup',drop);
+    on(r.domElement,'pointercancel',drop);
+
+    const loop=()=>{ if(!C) return; r.render(scene,camera); C.raf=requestAnimationFrame(loop); };
+    loop();
+  }
+
+  function tear(){
+    if(!C||C.torn) return; C.torn=true;
+    const {cbs,stripG,sliceG,bodyG,swayG,tiltG,shadow}=C;
+    C.sway.forEach(t=>t.kill());
+    renderer.domElement.style.pointerEvents='none';
+    cbs.onTearStart&&cbs.onTearStart();
+    gsap.to(tiltG.rotation,{x:0,y:0,duration:.15});
+    gsap.to(swayG.rotation,{y:0,duration:.15});
+    gsap.to(swayG.position,{y:0,duration:.15});
+    gsap.timeline()
+      .to(stripG.position,{x:2.8,y:'+=.12',duration:.34,ease:'power2.in'},0)
+      .to(stripG.rotation,{z:-.6,duration:.34,ease:'power2.in'},0)
+      .to(sliceG.rotation,{x:-1.9,duration:.42,ease:'power2.in'},.05)
+      .to(sliceG.position,{y:'+=.4',z:'+=.3',duration:.42,ease:'power2.in'},.05)
+      .to(bodyG.position,{y:'-=5.4',duration:.6,ease:'power2.in'},.18)
+      .to(bodyG.rotation,{z:.1,duration:.6,ease:'power2.in'},.18)
+      .to(shadow.material,{opacity:0,duration:.3},.15)
+      .add(()=>{ cbs.onOpen&&cbs.onOpen(); },.34);
+    C.mats.forEach(m=>gsap.to(m,{opacity:0,duration:.5,delay:.25}));
+  }
+
+  function dismiss(ms){
+    if(!C) return;
+    gsap.to(renderer.domElement,{opacity:0,duration:(ms||800)/1000,onComplete:unmount});
+  }
+  function unmount(){
+    if(!C) return;
+    cancelAnimationFrame(C.raf);
+    C.sway.forEach(t=>t.kill());
+    C.listeners.forEach(([el,t,f])=>el.removeEventListener(t,f));
+    gsap.killTweensOf(renderer.domElement);
+    C.scene.traverse(o=>{
+      if(o.geometry) o.geometry.dispose();
+      if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{
+        if(m.map) m.map.dispose(); m.dispose();
+      });
+    });
+    if(renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+    C=null;
+  }
+  function debugStripXY(){ // test hook: screen position of the tear strip
+    if(!C) return null;
+    const v=new THREE.Vector3();
+    C.stripG.getWorldPosition(v); v.project(C.camera);
+    const b=renderer.domElement.getBoundingClientRect();
+    return {x:b.left+(v.x+1)/2*b.width, y:b.top+(1-v.y)/2*b.height};
+  }
+  return {supported,mount,tear,dismiss,unmount,debugStripXY};
+})();
+
+/* ============================================================
    RIP EXPERIENCE — GSAP-driven 3D scene
    ============================================================ */
 /* Pointer tilt: Atropos drives the 3D lean + layered parallax
@@ -1080,6 +1387,25 @@ function renderRipPack(){
   $('#ripTitle').textContent = tier.name;
   ripDots();
   const stage=$('#ripStage'); stage.classList.remove('dim'); stage.innerHTML='';
+  if(Pack3D.supported()){ renderRipPack3D(stage, tier); return; }
+  renderRipPackDOM(stage, tier);
+}
+function renderRipPack3D(stage, tier){
+  Pack3D.mount(stage, tier, {
+    onGrab(){ playSound('grab'); haptic(10); },
+    onProgress(){ haptic(8); playSound('tear-progress'); },
+    onTearStart(){
+      playSound('tear'); pulse(false); popSmall();
+      $('#ripFoot').innerHTML=`<div class="hint">Here it comes…</div>`;
+    },
+    onOpen(){ state.rip.idx=0; renderRevealCard(true); },
+  });
+  $('#ripFoot').innerHTML=`<div class="hint">Pull the strip, or just hit the button</div>
+    <div style="margin-top:8px"><button class="btn" id="autoTear">Rip it</button></div>`;
+  $('#autoTear').addEventListener('click',()=>Pack3D.tear());
+}
+/* DOM fallback pack (Atropos tilt), used when WebGL is unavailable */
+function renderRipPackDOM(stage, tier){
   const wrap=el('div','pack-wrap atropos');
   wrap.innerHTML=`
     <div class="atropos-scale"><div class="atropos-rotate"><div class="atropos-inner">
@@ -1172,7 +1498,9 @@ function renderRevealCard(keepStage){
   if(keepStage){
     const oldPack=stage.querySelector('.pack-wrap');
     if(oldPack) setTimeout(()=>oldPack.remove(), 800);
+    Pack3D.dismiss(900); // fade the WebGL pack out under the card
   } else {
+    Pack3D.unmount();
     stage.innerHTML='';
   }
   const remaining = rip.cards.length-rip.idx-1;
