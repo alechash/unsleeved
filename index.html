@@ -191,7 +191,8 @@ nav.hidden{display:none}
 .card3d .flip{
   position:relative;width:100%;height:100%;
   transform-style:preserve-3d;
-  transition:transform .75s cubic-bezier(.2,.8,.25,1.05);
+  transition:transform .6s cubic-bezier(.3,1.3,.4,1);
+  will-change:transform;
 }
 .card3d.flipped .flip{transform:rotateY(180deg)}
 .cardface{
@@ -272,7 +273,10 @@ nav.hidden{display:none}
   font-family:var(--font-mono);font-weight:700;font-size:clamp(11px,6.5cqw,15px);
   color:var(--green);border-top:1px solid var(--hair);
   padding-top:5px;text-align:right;
+  transform-origin:right center;
 }
+.cf-value.pop{animation:valuePop .3s cubic-bezier(.3,1.4,.4,1)}
+@keyframes valuePop{40%{transform:scale(1.14)}100%{transform:scale(1)}}
 .cf-grade{
   position:absolute;top:32%;left:-1px;z-index:2;
   background:var(--red);color:#fff;font-family:var(--font-mono);font-weight:700;
@@ -343,6 +347,13 @@ nav.hidden{display:none}
 
 /* --- the pack --- */
 .pack-wrap{position:relative;width:250px;height:360px;z-index:6}
+.pack-wrap::after{ /* ground shadow */
+  content:'';position:absolute;left:12%;right:12%;bottom:-18px;height:10px;
+  border-radius:50%;background:#00000024;filter:blur(4px);
+  transition:opacity .25s;
+}
+.pack-wrap.opened{z-index:4;position:absolute}
+.pack-wrap.opened::after{opacity:0}
 .pack{
   position:absolute;inset:0;
   background:var(--pk);
@@ -350,6 +361,19 @@ nav.hidden{display:none}
   display:flex;flex-direction:column;align-items:center;
   box-shadow:6px 6px 0 #00000018;
   transition:transform .1s;
+  will-change:transform;
+}
+.pack-wrap.idle .pack{animation:packIdle 4.5s ease-in-out infinite}
+@keyframes packIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+/* torn-off top slice of the wrapper */
+.pack .pack-top{
+  position:absolute;top:-1.5px;left:-1.5px;right:-1.5px;height:21px;z-index:2;
+  background:var(--pk);border:1.5px solid var(--ink);
+}
+.pack-wrap.opened .pack-top{animation:topPop .45s cubic-bezier(.4,-.2,.8,.5) .05s forwards}
+@keyframes topPop{
+  30%{transform:translate(8%,-14px) rotate(3deg);opacity:1}
+  100%{transform:translate(60%,-90px) rotate(22deg);opacity:0}
 }
 .pack .p-tier{
   margin-top:80px;font-size:9px;letter-spacing:4px;color:#ffffffb3;font-weight:700;text-transform:uppercase;
@@ -389,15 +413,15 @@ nav.hidden{display:none}
   border-bottom:2px dashed var(--ink);opacity:.35;
 }
 .tearstrip:active{cursor:grabbing}
-.tearstrip.torn{animation:tearFly .55s cubic-bezier(.4,-.1,.8,.4) forwards;pointer-events:none}
+.tearstrip.torn{animation:tearFly .38s cubic-bezier(.4,-.1,.8,.4) forwards;pointer-events:none}
 @keyframes tearFly{
   20%{transform:translateX(30%) rotate(4deg)}
-  100%{transform:translate(150%,-40px) rotate(24deg);opacity:0}
+  100%{transform:translate(155%,-44px) rotate(24deg);opacity:0}
 }
-.pack-wrap.opened .pack{animation:packDrop .7s cubic-bezier(.5,0,.8,.4) .25s forwards}
+.pack-wrap.opened .pack{animation:packDrop .5s cubic-bezier(.5,0,.85,.4) .16s forwards}
 @keyframes packDrop{
-  15%{transform:translateY(-14px) rotate(-2deg)}
-  100%{transform:translateY(130%) rotate(6deg);opacity:0}
+  12%{transform:translateY(-10px) rotate(-1.5deg)}
+  100%{transform:translateY(135%) rotate(5deg);opacity:0}
 }
 .pack-wrap.wiggle .pack{animation:packWiggle .4s ease}
 @keyframes packWiggle{
@@ -406,20 +430,32 @@ nav.hidden{display:none}
 
 /* --- reveal stack --- */
 .reveal-wrap{position:relative;width:240px;height:346px;z-index:6}
+.reveal-wrap::after{ /* ground shadow */
+  content:'';position:absolute;left:12%;right:12%;bottom:-18px;height:10px;
+  border-radius:50%;background:#00000024;filter:blur(4px);
+}
 .stack-ghost{
   position:absolute;inset:0;border-radius:6px;border:1.5px solid var(--ink);
   background:var(--white);
 }
 .stack-ghost.g1{transform:translate(7px,8px) rotate(2deg)}
-.reveal-card{position:absolute;inset:0;cursor:pointer;filter:drop-shadow(5px 5px 0 #00000015)}
+.reveal-card{position:absolute;inset:0;cursor:pointer;filter:drop-shadow(5px 5px 0 #00000015);will-change:transform}
 .reveal-card .flip{width:100%;height:100%}
-.reveal-card.enter{animation:cardEnter .5s cubic-bezier(.2,.9,.3,1.2)}
+.reveal-card.enter{animation:cardEnter .42s cubic-bezier(.16,.84,.28,1)}
 @keyframes cardEnter{
-  from{transform:translateY(60px) scale(.7) rotate(4deg);opacity:0}
+  from{transform:translateY(38px) scale(.94);opacity:0}
+  60%{opacity:1}
   to{transform:none;opacity:1}
 }
-.reveal-card.exit{animation:cardExit .4s ease forwards;pointer-events:none}
-@keyframes cardExit{to{transform:translate(-120%,-10%) rotate(-14deg);opacity:0}}
+.reveal-card.exit{animation:cardExit .32s cubic-bezier(.5,0,.8,.4) forwards;pointer-events:none}
+@keyframes cardExit{to{transform:translate(-120%,-8%) rotate(-12deg);opacity:0}}
+/* white snap-flash at the flip midpoint */
+.reveal-card.flipped::before{
+  content:'';position:absolute;inset:-2px;z-index:5;pointer-events:none;
+  background:#fff;opacity:0;
+  animation:flipFlash .46s ease .2s;
+}
+@keyframes flipFlash{0%{opacity:0}30%{opacity:.55}100%{opacity:0}}
 /* suspense charge */
 .reveal-card.charging{animation:charge var(--charge,1.4s) ease-in forwards}
 @keyframes charge{
@@ -437,7 +473,8 @@ nav.hidden{display:none}
 }
 .reveal-card .glowring{
   position:absolute;inset:-8px;pointer-events:none;opacity:0;
-  border:3px solid var(--gold-bright);
+  border:2px solid var(--gold-bright);
+  box-shadow:0 0 0 5px #d9a41026;
   transition:opacity .4s;
 }
 .reveal-card.charging .glowring{opacity:1;animation:glowGrow var(--charge,1.4s) ease-in forwards}
@@ -473,6 +510,26 @@ nav.hidden{display:none}
 @keyframes cfFall{
   0%{transform:translateY(0) rotate(0) rotateY(0)}
   100%{transform:translateY(105vh) rotate(560deg) rotateY(720deg)}
+}
+/* radial burst pieces fired from the card */
+.pop-piece{
+  position:absolute;left:50%;top:42%;width:7px;height:10px;z-index:41;pointer-events:none;
+  animation:popPiece var(--dur,.75s) cubic-bezier(.1,.75,.3,1) forwards;
+}
+@keyframes popPiece{
+  0%{transform:translate(0,0) rotate(0);opacity:1}
+  70%{opacity:1}
+  100%{transform:translate(var(--tx),var(--ty)) rotate(var(--rot));opacity:0}
+}
+/* stage shake on big hits */
+.rip-stage.shake{animation:stageShake .45s ease}
+@keyframes stageShake{
+  10%{transform:translate(-4px,2px)}
+  25%{transform:translate(5px,-3px)}
+  40%{transform:translate(-6px,-2px)}
+  55%{transform:translate(5px,3px)}
+  70%{transform:translate(-3px,1px)}
+  85%{transform:translate(2px,-1px)}
 }
 
 /* big-hit / bonus banner */
@@ -924,6 +981,24 @@ function confetti(n, gold){
     setTimeout(()=>p.remove(), 3800);
   }
 }
+/* radial burst from the revealed card */
+function confettiBurst(n, gold){
+  const host=$('#ripStage');
+  const colors = gold ? ['#b98900','#d9a410','#f0d78c','#111110']
+                      : ['#111110','#1f4e9c','#d92c20','#b98900'];
+  for(let i=0;i<n;i++){
+    const p=el('i','pop-piece');
+    const ang=Math.random()*Math.PI*2, dist=90+Math.random()*160;
+    p.style.setProperty('--tx', Math.cos(ang)*dist+'px');
+    p.style.setProperty('--ty', (Math.sin(ang)*dist*.8 - 30)+'px');
+    p.style.setProperty('--rot', (Math.random()*720-360)+'deg');
+    p.style.setProperty('--dur', (.55+Math.random()*.45)+'s');
+    p.style.background=colors[Math.random()*colors.length|0];
+    if(Math.random()<.4) p.style.borderRadius='50%';
+    host.appendChild(p);
+    setTimeout(()=>p.remove(), 1100);
+  }
+}
 
 /* card front markup (shared by rip / results / vault) */
 function cardFrontHTML(c){
@@ -1068,10 +1143,11 @@ function renderRipPack(){
   $('#ripTitle').textContent = tier.name + ' PACK';
   ripDots();
   const stage=$('#ripStage'); stage.classList.remove('dim'); stage.innerHTML='';
-  const wrap=el('div','pack-wrap');
+  const wrap=el('div','pack-wrap idle');
   wrap.style.setProperty('--pk', tier.color);
   wrap.innerHTML=`
     <div class="pack${tier.id==='grail'?' gold-face':''}">
+      <div class="pack-top"></div>
       <div class="p-tier">— ${tier.name} —</div>
       <div class="p-name">One<br>Card</div>
       <div class="p-sub">REAL PHYSICAL CARD INSIDE</div>
@@ -1090,6 +1166,7 @@ function initTear(wrap){
   let active=false, startX=0, lastBuzz=0;
   strip.addEventListener('pointerdown',e=>{
     active=true; startX=e.clientX;
+    wrap.classList.remove('idle');
     strip.setPointerCapture(e.pointerId);
     playSound('grab'); haptic(10);
   });
@@ -1116,17 +1193,26 @@ function completeTear(wrap){
   if(wrap.dataset.torn) return; wrap.dataset.torn='1';
   const strip=wrap.querySelector('#tearstrip');
   strip.style.transition=''; strip.classList.add('torn');
+  wrap.classList.remove('idle');
+  wrap.querySelector('.pack').style.transform='';
   wrap.classList.add('opened');
   playSound('tear'); pulse(false); confetti(14,false);
   $('#ripFoot').innerHTML=`<div class="hint">HERE IT COMES…</div>`;
-  setTimeout(()=>{ state.rip.idx=0; renderRevealCard(); }, 1000);
+  // card rises while the pack body is still falling — no dead air
+  setTimeout(()=>{ state.rip.idx=0; renderRevealCard(true); }, 400);
 }
 
-function renderRevealCard(){
+function renderRevealCard(keepStage){
   const rip=state.rip;
   const c=rip.cards[rip.idx];
   ripDots();
-  const stage=$('#ripStage'); stage.innerHTML=''; stage.classList.remove('dim');
+  const stage=$('#ripStage'); stage.classList.remove('dim');
+  if(keepStage){
+    const oldPack=stage.querySelector('.pack-wrap');
+    if(oldPack) setTimeout(()=>oldPack.remove(), 800);
+  } else {
+    stage.innerHTML='';
+  }
   const remaining = rip.cards.length-rip.idx-1;
   const wrap=el('div','reveal-wrap');
   wrap.innerHTML = `
@@ -1169,19 +1255,21 @@ function flipCard(card, c){
     setTimeout(()=>{
       rip.revealedValue += c.value;
       if(big){
-        playSound('hit'); pulse(true); confetti(90,true);
+        playSound('hit'); pulse(true); confetti(70,true); confettiBurst(34,true);
+        const stage=$('#ripStage');
+        stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
         const b=el('div','burst'); b.innerHTML='<div class="rays"></div>';
         card.parentElement.appendChild(b); setTimeout(()=>b.remove(),1400);
         const banner=el('div','hit-banner','BIG HIT');
-        $('#ripStage').appendChild(banner); setTimeout(()=>banner.remove(),2700);
+        stage.appendChild(banner); setTimeout(()=>banner.remove(),2700);
       } else if(mid){
-        playSound('reveal-rare'); pulse(false); confetti(26, c.rarity==='e');
+        playSound('reveal-rare'); pulse(false); confettiBurst(22, c.rarity==='e');
         if(c.rarity==='e'){
           const b=el('div','burst'); b.innerHTML='<div class="rays"></div>';
           card.parentElement.appendChild(b); setTimeout(()=>b.remove(),1400);
         }
       } else {
-        playSound('reveal-common'); haptic(15);
+        playSound('reveal-common'); haptic(15); confettiBurst(10,false);
       }
       countUpValue(card.querySelector('.cf-value'), c.value);
       showNextButton();
@@ -1194,7 +1282,8 @@ function countUpValue(elm, target){
     const p=Math.min(1,(t-t0)/dur);
     const eased=1-Math.pow(1-p,3);
     elm.textContent=money(target*eased);
-    if(p<1) requestAnimationFrame(step); else elm.textContent=money(target);
+    if(p<1) requestAnimationFrame(step);
+    else { elm.textContent=money(target); elm.classList.add('pop'); }
   };
   requestAnimationFrame(step);
 }
