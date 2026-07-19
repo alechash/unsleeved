@@ -187,21 +187,29 @@ nav.hidden{display:none}
   display:grid;place-items:center;
   container-type:inline-size;
 }
-.card-back .cb-frame{
+.card-back::before{ /* soft tier-tinted glow behind the emblem */
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--tierc,#c9a227) 16%, transparent), transparent 58%);
+}
+.card-back .cb-frame{ /* quiet neutral hairline, no colored outline */
   position:absolute;inset:4.5cqw;border-radius:5cqw;
-  border:1px solid color-mix(in srgb, var(--tierc,#c9a227) 55%, transparent);
+  border:1px solid #ffffff12;
   pointer-events:none;
 }
-.card-back .cb-emblem{
-  width:32cqw;aspect-ratio:1;transform:rotate(45deg);
-  border:1.5px solid var(--tierc,#c9a227);border-radius:14%;
+.card-back .cb-emblem{ /* filled, softly lit — no border */
+  width:34cqw;aspect-ratio:1;transform:rotate(45deg);
+  border-radius:16%;
+  background:linear-gradient(150deg,
+    color-mix(in srgb, var(--tierc,#c9a227) 45%, #191815),
+    color-mix(in srgb, var(--tierc,#c9a227) 10%, #191815));
+  box-shadow:inset 0 1px 0 #ffffff30, inset 0 -8px 16px #00000059,
+    0 2cqw 8cqw #00000073;
   display:grid;place-items:center;
-  background:color-mix(in srgb, var(--tierc,#c9a227) 16%, transparent);
-  box-shadow:0 0 10cqw color-mix(in srgb, var(--tierc,#c9a227) 40%, transparent);
 }
 .card-back .cb-emblem b{
   transform:rotate(-45deg);
-  font-size:15cqw;font-weight:800;color:var(--tierc,#c9a227);
+  font-size:14cqw;font-weight:800;color:#f2f0e8;
+  text-shadow:0 1px 4px #00000066;
 }
 .card-back .cb-word{
   position:absolute;bottom:8cqw;left:0;right:0;text-align:center;
@@ -362,14 +370,24 @@ nav.hidden{display:none}
   border-top:1px solid #ffffff26;padding-top:10px;
   font-variant-numeric:tabular-nums;
 }
+/* tear strip: part of the wrapper, marked off by perforation lines */
 .tearstrip{
   position:absolute;top:20px;left:0;right:0;height:36px;z-index:3;
-  background:var(--bg);
-  border-top:1px solid #00000033;border-bottom:1px dashed #d9d8d0;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--gray);font-size:11px;font-weight:500;
+  background:#ffffff0a;
+  border-top:1px dashed #ffffff30;border-bottom:1px dashed #ffffff30;
+  display:flex;align-items:center;gap:10px;
+  padding:0 16px;
+  color:#ffffff66;font-size:9.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
   cursor:grab;touch-action:none;user-select:none;
   will-change:transform;
+}
+.tearstrip::before{ /* grip tab in the tier color */
+  content:'';flex:0 0 auto;width:22px;height:4px;border-radius:2px;
+  background:var(--tierc,#c9a227);
+}
+.tearstrip::after{ /* pull direction */
+  content:'› › ›';margin-left:auto;
+  font-size:12px;letter-spacing:.28em;color:#ffffff45;
 }
 .tearstrip:active{cursor:grabbing}
 
@@ -1044,7 +1062,7 @@ function renderRipPack(){
     <div class="pack-tilt"><div class="pack-swing">
       <div class="pack" style="--tierc:${tier.color}">
         <div class="pack-top"></div>
-        <div class="tearstrip" id="tearstrip">Pull to tear</div>
+        <div class="tearstrip" id="tearstrip">Tear here</div>
         <div class="pack-stripe"></div>
         <div class="p-brand">Unsleeved</div>
         <div class="p-name">${tier.name}</div>
