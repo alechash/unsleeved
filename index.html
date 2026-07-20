@@ -154,9 +154,24 @@ nav.hidden{display:none}
 .tier-info{flex:1;min-width:0}
 .tier h3{font-size:16.5px;font-weight:600;letter-spacing:-.2px}
 .tier .meta{font-size:12px;color:var(--gray);margin-top:5px;line-height:1.6}
-.tier .odds-line{font-size:12px;color:var(--faint);margin-top:2px;line-height:1.6}
-.tier .chase-line{font-size:12px;margin-top:8px;color:var(--gray)}
-.tier .chase-line b{font-weight:600;color:var(--ink)}
+.info-btn{
+  flex:0 0 auto;background:none;border:none;cursor:pointer;
+  width:36px;height:36px;display:grid;place-items:center;
+  color:var(--faint);border-radius:50%;
+  transition:color .12s;
+}
+.info-btn svg{width:18px;height:18px;stroke:currentColor}
+.info-btn:active{color:var(--ink)}
+/* pack odds sheet rows (Rips-style: card, value, odds) */
+.odds-row{display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--hair);padding:10px 0}
+.odds-row .thumb{width:42px;flex:0 0 auto;aspect-ratio:5/7}
+.odds-row .thumb .card3d,.odds-row .thumb .flip{width:100%;height:100%}
+.odds-row .oi{flex:1;min-width:0}
+.odds-row .oi .on{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.odds-row .oi .od{font-size:11px;color:var(--gray);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.odds-row .ov{text-align:right;flex:0 0 auto}
+.odds-row .ov b{font-size:13px;font-variant-numeric:tabular-nums;display:block}
+.odds-row .ov span{font-size:11px;color:var(--gray);font-variant-numeric:tabular-nums}
 .price-tag{
   font-size:16.5px;font-weight:600;flex:0 0 auto;align-self:flex-start;
   font-variant-numeric:tabular-nums;padding-top:1px;
@@ -173,15 +188,16 @@ nav.hidden{display:none}
   border-radius:7px;overflow:hidden;
   display:grid;place-items:center;
 }
-.pack-icon::before{ /* tear strip */
-  content:'';position:absolute;top:8px;left:0;right:0;height:5px;
-  background:var(--tierc,#c9a227);opacity:.9;
+.pack-icon::before{ /* crimped top seal + tier tear line */
+  content:'';position:absolute;top:0;left:0;right:0;height:9px;
+  background:repeating-linear-gradient(90deg, #ffffff24 0 2px, transparent 2px 5px);
+  border-bottom:1px solid var(--tierc,#c9a227);
+}
+.pack-icon::after{ /* crimped bottom seal */
+  content:'';position:absolute;bottom:0;left:0;right:0;height:9px;
+  background:repeating-linear-gradient(90deg, #ffffff24 0 2px, transparent 2px 5px);
 }
 .pack-icon svg{width:18px;height:18px;stroke:var(--tierc,#c9a227)}
-.pack-icon i{
-  position:absolute;bottom:8px;right:8px;width:6px;height:6px;
-  border-radius:50%;background:var(--tierc,#c9a227);
-}
 
 /* ============================================================
    CARDS (shared 3D flip card)
@@ -524,15 +540,15 @@ nav.hidden{display:none}
 .result-row .info .nm{font-size:15.5px;font-weight:600;letter-spacing:-.2px}
 .result-row .info .dt{font-size:12px;color:var(--gray);margin-top:3px;line-height:1.5}
 .result-row .info .val{font-size:13px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
-.seg{display:flex;gap:18px;margin-top:9px}
+.seg{display:flex;gap:8px;margin-top:10px}
 .seg button{
-  border:none;background:none;padding:2px 0;
-  font-family:var(--font);font-weight:500;font-size:13px;color:var(--faint);
+  border:1px solid var(--hair);background:none;border-radius:9px;
+  padding:8px 16px;
+  font-family:var(--font);font-weight:500;font-size:13px;color:var(--gray);
   cursor:pointer;
-  border-bottom:1.5px solid transparent;
-  transition:color .12s,border-color .12s;
+  transition:all .12s;
 }
-.seg button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.seg button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
 .confirm-bar{position:sticky;bottom:0;padding:14px 0 4px;background:linear-gradient(transparent,var(--bg) 40%);
   display:flex;gap:12px;justify-content:center;align-items:center}
 
@@ -656,7 +672,7 @@ nav.hidden{display:none}
     <!-- ================= RESULTS ================= -->
     <section class="view" id="view-results">
       <h2>Your pull</h2>
-      <div class="sub">Choose a home for each card.</div>
+      <div class="sub">Vault it or sell it back, card by card.</div>
       <div class="summary-line" id="resultSummary"></div>
       <div id="resultRows"></div>
       <div class="confirm-bar">
@@ -700,6 +716,19 @@ nav.hidden{display:none}
     <button data-nav="vault">Vault</button>
     <button data-nav="wallet">Wallet</button>
   </nav>
+
+  <!-- pack odds sheet -->
+  <div class="modal-scrim" id="packSheet">
+    <div class="modal">
+      <h3 id="psTitle"></h3>
+      <div class="sub" id="psSub"></div>
+      <div id="psList"></div>
+      <div class="actions">
+        <button class="btn ghost small" id="psClose">Close</button>
+        <button class="btn small" id="psRip">Rip</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ship modal -->
   <div class="modal-scrim" id="shipModal">
@@ -773,6 +802,7 @@ const ICONS = {
   sparkles:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>',
   gem:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3 8 9l4 13 4-13-2.5-6"/><path d="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z"/><path d="M2 9h20"/></svg>',
   crown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
 };
 const TEAMS = {
   KC:  ['#c9243f','#7d1426'], MIA:['#008e97','#005778'], PHI:['#004c54','#002b30'],
@@ -957,21 +987,46 @@ function renderShop(){
   const g=$('#tierGrid'); g.innerHTML='';
   TIERS.forEach(t=>{
     const tile=el('div','tier');
-    const oddsText=RARITY_ORDER.filter(k=>t.effWeights[k]>0)
-      .map(k=>`${fmtOdds(t.effWeights[k])} ${RARITY[k].label.toLowerCase()}`).join(' · ');
-    const topKey=RARITY_ORDER.filter(k=>t.effWeights[k]>0).pop();
     tile.innerHTML=`
-      <div class="pack-icon" style="--tierc:${t.color}">${ICONS[t.icon]}<i></i></div>
+      <div class="pack-icon" style="--tierc:${t.color}">${ICONS[t.icon]}</div>
       <div class="tier-info">
         <h3>${t.name}</h3>
-        <div class="meta">Min ${money(t.min)} · Max ${money(t.maxPull)} · Bonus card in ${Math.round(t.bonusChance*100)}% of packs</div>
-        <div class="odds-line">${oddsText}</div>
-        <div class="chase-line">Chase: <b>${t.chase}</b> · ${fmtOdds(t.effWeights[topKey])}</div>
+        <div class="meta">Min ${money(t.min)} · Max ${money(t.maxPull)}</div>
       </div>
+      <button class="info-btn" aria-label="Odds and details">${ICONS.info}</button>
       <div class="price-tag">$${t.price}</div>`;
     tile.addEventListener('click',()=>buyPack(t));
+    tile.querySelector('.info-btn').addEventListener('click',e=>{
+      e.stopPropagation(); openPackSheet(t);
+    });
     g.appendChild(tile);
   });
+}
+/* per-card odds, Rips-style: every pullable card with value + odds */
+function packOddsList(t){
+  return POOL
+    .filter(c=>t.effWeights[c.rarity]>0 && c.value>=t.min)
+    .map(c=>({c, p:t.effWeights[c.rarity]/byRarity(c.rarity).filter(x=>x.value>=t.min).length}))
+    .sort((a,b)=>b.c.value-a.c.value);
+}
+function openPackSheet(t){
+  $('#psTitle').textContent=`${t.name}`;
+  $('#psSub').textContent=`One card per pack · ${money(t.min)} minimum guaranteed · bonus card in ${Math.round(t.bonusChance*100)}% of packs`;
+  const host=$('#psList'); host.innerHTML='';
+  packOddsList(t).forEach(({c,p})=>{
+    const bits=[`${c.year} ${c.set}`,c.parallel];
+    if(c.serial) bits.push('#'+c.serial);
+    if(c.grade) bits.push(c.grade);
+    const row=el('div','odds-row');
+    row.innerHTML=`
+      <div class="thumb">${miniCardHTML(c)}</div>
+      <div class="oi"><div class="on">${c.player}</div><div class="od">${bits.join(' · ')}</div></div>
+      <div class="ov"><b>${money(c.value)}</b><span>${fmtOdds(p)}</span></div>`;
+    host.appendChild(row);
+  });
+  $('#psRip').textContent=`Rip for $${t.price}`;
+  $('#psRip').onclick=()=>{ $('#packSheet').classList.remove('open'); buyPack(t); };
+  $('#packSheet').classList.add('open');
 }
 
 /* ============================================================
@@ -1041,7 +1096,10 @@ function buyPack(tier){
    unavailable.
    ============================================================ */
 const Pack3D=(()=>{
-  const W=1.72, H=2.5, D=.14, SLICE=.14, STRIP=.25, BODY=H-SLICE-STRIP;
+  /* booster-pack proportions: thin foil body, crimped seals top and
+     bottom, flush tear strip under the top crimp */
+  const W=1.72, H=2.5, D=.085, CRIMP=.12, SLICE=.08, STRIP=.22;
+  const BODY=H-CRIMP-SLICE-STRIP-CRIMP;
   const SYS="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
   let renderer=null, envTex=null, C=null;
 
@@ -1087,19 +1145,19 @@ const Pack3D=(()=>{
     g.fillStyle=tier.color; g.globalAlpha=.85; g.fillRect(0,0,w,10*u); g.globalAlpha=1;
     g.fillStyle=mix(tier.color,'#ffffff',.45);
     g.font=`500 ${28*u}px 'Space Grotesk',sans-serif`;
-    g.fillText('Unsleeved',40*u,88*u);
-    if(C&&C.icon) g.drawImage(C.icon,w-92*u,50*u,48*u,48*u);
+    g.fillText('Unsleeved',40*u,84*u);
+    if(C&&C.icon) g.drawImage(C.icon,w-92*u,46*u,48*u,48*u);
     g.fillStyle='#fff';
     g.font=`700 ${92*u}px 'Space Grotesk',sans-serif`;
-    g.fillText(C&&C.tier?C.tier.name:tier.name,36*u,468*u);
+    g.fillText(C&&C.tier?C.tier.name:tier.name,36*u,428*u);
     g.fillStyle='rgba(255,255,255,.45)';
     g.font=`500 ${25*u}px 'Space Grotesk',sans-serif`;
-    g.fillText('One card inside',40*u,514*u);
+    g.fillText('One card inside',40*u,474*u);
     g.strokeStyle='rgba(255,255,255,.15)'; g.lineWidth=1.5*u;
-    g.beginPath(); g.moveTo(40*u,564*u); g.lineTo(w-40*u,564*u); g.stroke();
+    g.beginPath(); g.moveTo(40*u,522*u); g.lineTo(w-40*u,522*u); g.stroke();
     g.fillStyle='rgba(255,255,255,.6)';
     g.font=`500 ${23*u}px ${SYS}`;
-    g.fillText(`Min ${money(tier.min)} · Max ${money(tier.maxPull)}`,40*u,604*u);
+    g.fillText(`Min ${money(tier.min)} · Max ${money(tier.maxPull)}`,40*u,560*u);
   }
   function drawStrip(g,w,h,tier){
     const u=w/520;
@@ -1146,35 +1204,55 @@ const Pack3D=(()=>{
     const foilStrip=foil.clone(); foilStrip.color=new THREE.Color(0x201f1b);
     foilStrip.metalness=.55; foilStrip.roughness=.6; foilStrip.envMapIntensity=.7; // matte enough for the print to read
     const foilSlice=foil.clone();
+    const crimpMat=foil.clone(); // pinched foil seals
+    crimpMat.color=new THREE.Color(0x1b1a17);
+    crimpMat.metalness=.8; crimpMat.roughness=.62;
 
     const tiltG=new THREE.Group(), swayG=new THREE.Group(), packG=new THREE.Group();
     scene.add(tiltG); tiltG.add(swayG); swayG.add(packG);
 
-    // lower body (everything below the tear strip) + its print
+    // crimp ridges: vertical pinch marks on the seals
+    const ridgeTex=canvasTex(512,48,g=>{
+      for(let x=0;x<512;x+=8){
+        g.fillStyle=(x%16)?'rgba(255,255,255,.10)':'rgba(0,0,0,.30)';
+        g.fillRect(x,0,4,48);
+      }
+    });
+    const ridge=()=>new THREE.Mesh(
+      new THREE.PlaneGeometry(W-.04,CRIMP-.035),
+      new THREE.MeshBasicMaterial({map:ridgeTex.tex,transparent:true}));
+
+    // lower body (everything below the tear strip) + bottom crimp + print
     const bodyG=new THREE.Group();
-    bodyG.position.y=H/2-SLICE-STRIP-BODY/2;
-    const body=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,BODY,D,3,.06),foil);
+    bodyG.position.y=H/2-CRIMP-SLICE-STRIP-BODY/2;
+    const body=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,BODY,D,3,.04),foil);
     const bodyPrint=canvasTex(520,Math.round(BODY/W*520),(g,w,h)=>drawBody(g,w,h,tier));
     const bodyPlane=new THREE.Mesh(
       new THREE.PlaneGeometry(W-.06,BODY-.06),
       new THREE.MeshBasicMaterial({map:bodyPrint.tex,transparent:true}));
     bodyPlane.position.z=D/2+.004;
-    bodyG.add(body,bodyPlane);
+    const crimpB=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,CRIMP,.022,1,.008),crimpMat);
+    crimpB.position.y=-(BODY/2+CRIMP/2);
+    const ridgeB=ridge(); ridgeB.position.set(0,crimpB.position.y,.014);
+    bodyG.add(body,bodyPlane,crimpB,ridgeB);
 
-    // torn-off top slice, hinged at its bottom edge
-    const sliceG=new THREE.Group(); sliceG.position.y=H/2-SLICE;
-    const slice=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,SLICE,D,2,.05),foilSlice);
+    // torn-off top piece (crimp + slice), hinged at its bottom edge
+    const sliceG=new THREE.Group(); sliceG.position.y=H/2-CRIMP-SLICE;
+    const slice=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,SLICE,D,2,.03),foilSlice);
     slice.position.y=SLICE/2;
-    sliceG.add(slice);
+    const crimpT=new THREE.Mesh(new THREE.RoundedBoxGeometry(W,CRIMP,.022,1,.008),crimpMat);
+    crimpT.position.y=SLICE+CRIMP/2;
+    const ridgeT=ridge(); ridgeT.position.set(0,crimpT.position.y,.014);
+    sliceG.add(slice,crimpT,ridgeT);
 
-    // tear strip (slightly proud of the wrapper) + its print
-    const stripG=new THREE.Group(); stripG.position.y=H/2-SLICE-STRIP/2;
-    const strip=new THREE.Mesh(new THREE.RoundedBoxGeometry(W+.02,STRIP,D+.03,2,.04),foilStrip);
+    // tear strip (nearly flush with the wrapper) + its print
+    const stripG=new THREE.Group(); stripG.position.y=H/2-CRIMP-SLICE-STRIP/2;
+    const strip=new THREE.Mesh(new THREE.RoundedBoxGeometry(W+.01,STRIP,D+.012,2,.03),foilStrip);
     const stripPrint=canvasTex(520,Math.round(STRIP/W*520),(g,w,h)=>drawStrip(g,w,h,tier));
     const stripPlane=new THREE.Mesh(
       new THREE.PlaneGeometry(W,STRIP-.02),
       new THREE.MeshBasicMaterial({map:stripPrint.tex,transparent:true}));
-    stripPlane.position.z=(D+.03)/2+.004;
+    stripPlane.position.z=(D+.012)/2+.004;
     stripG.add(strip,stripPlane);
 
     packG.add(bodyG,sliceG,stripG);
@@ -1193,7 +1271,7 @@ const Pack3D=(()=>{
 
     C={stageEl,scene,camera,tier,cbs,raf:0,torn:false,icon:null,pxPerWorld:1,
        tiltG,swayG,packG,bodyG,sliceG,stripG,shadow,
-       mats:[foil,foilStrip,foilSlice,bodyPlane.material,stripPlane.material],
+       mats:[foil,foilStrip,foilSlice,crimpMat,bodyPlane.material,stripPlane.material,ridgeB.material,ridgeT.material],
        redraws:[bodyPrint.redraw,stripPrint.redraw],
        listeners:[],sway:[]};
 
@@ -1647,7 +1725,6 @@ function renderResults(){
           <div class="seg">
             <button data-d="vault" class="${c.decision==='vault'?'on':''}">Vault</button>
             <button data-d="sell"  class="${c.decision==='sell'?'on':''}">Sell for ${money(c.value)}</button>
-            <button data-d="ship"  class="${c.decision==='ship'?'on':''}">Ship</button>
           </div>
         </div>
       </div>`;
@@ -1683,7 +1760,7 @@ $('#confirmDecisions').addEventListener('click',()=>{
   renderBalance();
   state.rip=null;
   show('shop');
-  toast(`Done. ${kept.length} vaulted, ${sold.length} sold, ${ship.length} shipping.`);
+  toast(`Done. ${kept.length} vaulted, ${sold.length} sold${ship.length?`, ${ship.length} shipping`:''}.`);
 });
 
 /* ============================================================
@@ -1729,6 +1806,7 @@ function openShipModal(cards){
   $('#shipModalSub').textContent=`${cards.length} card${cards.length>1?'s':''} · penny sleeve and top loader · free shipping`;
   $('#shipModal').classList.add('open');
 }
+$('#psClose').addEventListener('click',()=>$('#packSheet').classList.remove('open'));
 $('#shipCancel').addEventListener('click',()=>$('#shipModal').classList.remove('open'));
 $('#shipConfirm').addEventListener('click',()=>{
   const name=$('#shipName').value.trim(), street=$('#shipStreet').value.trim();
