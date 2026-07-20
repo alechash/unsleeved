@@ -359,6 +359,7 @@ nav.hidden{display:none}
 }
 @keyframes dimIn{from{opacity:0}to{opacity:1}}
 .rip-foot{flex:0 0 auto;text-align:center;padding:12px 16px 22px;min-height:92px}
+.foot-row{display:flex;gap:10px;justify-content:center;margin-top:2px}
 .hint{font-size:12px;color:var(--faint);animation:hintPulse 1.6s ease-in-out infinite}
 @keyframes hintPulse{0%,100%{opacity:.5}50%{opacity:1}}
 
@@ -519,40 +520,6 @@ nav.hidden{display:none}
 .value-ticker b{color:var(--ink);font-weight:600}
 
 /* ============================================================
-   RESULTS (post-rip decisions)
-   ============================================================ */
-.summary-line{
-  display:flex;gap:24px;
-  border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);
-  padding:16px 2px;margin-bottom:6px;
-}
-.summary-line .cell b{font-size:16px;font-weight:600;display:block;font-variant-numeric:tabular-nums}
-.summary-line .cell span{font-size:11.5px;color:var(--gray)}
-.result-row{
-  display:flex;gap:16px;align-items:stretch;position:relative;
-  border-bottom:1px solid var(--hair);
-  padding:18px 2px;
-}
-.result-row .bonus-word{color:var(--gold);font-weight:600}
-.result-row .thumb{width:60px;flex:0 0 auto;aspect-ratio:5/7}
-.result-row .thumb .card3d,.result-row .thumb .flip{width:100%;height:100%}
-.result-row .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
-.result-row .info .nm{font-size:15.5px;font-weight:600;letter-spacing:-.2px}
-.result-row .info .dt{font-size:12px;color:var(--gray);margin-top:3px;line-height:1.5}
-.result-row .info .val{font-size:13px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
-.seg{display:flex;gap:8px;margin-top:10px}
-.seg button{
-  border:1px solid var(--hair);background:none;border-radius:9px;
-  padding:8px 16px;
-  font-family:var(--font);font-weight:500;font-size:13px;color:var(--gray);
-  cursor:pointer;
-  transition:all .12s;
-}
-.seg button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
-.confirm-bar{position:sticky;bottom:0;padding:14px 0 4px;background:linear-gradient(transparent,var(--bg) 40%);
-  display:flex;gap:12px;justify-content:center;align-items:center}
-
-/* ============================================================
    VAULT
    ============================================================ */
 .vault-summary{font-size:13px;color:var(--gray);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
@@ -667,18 +634,6 @@ nav.hidden{display:none}
       </div>
       <div class="rip-stage" id="ripStage"></div>
       <div class="rip-foot" id="ripFoot"></div>
-    </section>
-
-    <!-- ================= RESULTS ================= -->
-    <section class="view" id="view-results">
-      <h2>Your pull</h2>
-      <div class="sub">Vault it or sell it back, card by card.</div>
-      <div class="summary-line" id="resultSummary"></div>
-      <div id="resultRows"></div>
-      <div class="confirm-bar">
-        <button class="btn ghost" id="sellAll">Sell all</button>
-        <button class="btn" id="confirmDecisions">Confirm</button>
-      </div>
     </section>
 
     <!-- ================= VAULT ================= -->
@@ -938,7 +893,8 @@ function cardFrontHTML(c){
   const bits = [c.parallel];
   if(c.serial) bits.push('#'+c.serial);
   if(c.grade) bits.push(c.grade);
-  const rarityBit = c.rarity==='l' ? '<span class="chase-word">Chase</span>' : r.label;
+  const rarityBit = c.rarity==='l' ? '<span class="chase-word">Chase</span>'
+    : (r.label===c.parallel ? '' : r.label); // avoid "Base · Base"
   return `<div class="cardface card-front ${r.cls}" style="--team1:${t1};--team2:${t2}">
     ${c.bonus ? `<div class="cf-bonus">Bonus</div>` : ''}
     <div class="cf-art">
@@ -946,7 +902,7 @@ function cardFrontHTML(c){
       <div class="monogram" data-atropos-offset="4">${initials}</div>
     </div>
     <div class="cf-name">${c.player}</div>
-    <div class="cf-meta">${c.year} ${c.set} · ${bits.join(' · ')} · ${rarityBit}</div>
+    <div class="cf-meta">${[`${c.year} ${c.set}`,...bits,rarityBit].filter(Boolean).join(' · ')}</div>
     <div class="cf-value" data-val="${c.value}">${money(c.value)}</div>
   </div>`;
 }
@@ -968,7 +924,7 @@ function show(view){
   $$('.view').forEach(v=>v.classList.remove('active'));
   $('#view-'+view).classList.add('active');
   $$('#tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.nav===view));
-  $('#tabbar').classList.toggle('hidden', view==='rip' || view==='results');
+  $('#tabbar').classList.toggle('hidden', view==='rip');
   if(view!=='rip'){ destroyTilt(); Pack3D.unmount(); }
   if(view==='vault') renderVault();
   if(view==='wallet') renderWallet();
@@ -1672,96 +1628,55 @@ function showNextButton(){
   const rip=state.rip;
   const last = rip.idx >= rip.cards.length-1;
   const nextIsBonus = !last && rip.cards[rip.idx+1].bonus;
+  if(last){
+    // decide right here: no interstitial results screen
+    const pulled=rip.cards.reduce((s,c)=>s+c.value,0);
+    const many=rip.cards.length>1;
+    $('#ripFoot').innerHTML=`
+      <div class="value-ticker">Pack value <b>${money(pulled)}</b></div>
+      <div class="foot-row">
+        <button class="btn ghost" id="vaultPull">${many?'Vault all':'Vault'}</button>
+        <button class="btn gold" id="sellPull">Sell for ${money(pulled)}</button>
+      </div>`;
+    $('#vaultPull').addEventListener('click',()=>finishRip('vault'));
+    $('#sellPull').addEventListener('click',()=>finishRip('sell'));
+    return;
+  }
   $('#ripFoot').innerHTML=`
     <div class="value-ticker">Pack value so far <b>${money(rip.revealedValue)}</b></div>
-    <button class="btn ${last?'gold':''}" id="nextCard">${last?'See your pull':(nextIsBonus?'There\'s a bonus in here':'Next card')}</button>`;
+    <button class="btn" id="nextCard">${nextIsBonus?'There\'s a bonus in here':'Next card'}</button>`;
   $('#nextCard').addEventListener('click',()=>{
     const cardEl=$('#revealCard');
-    if(!last){
-      destroyTilt();
-      playSound('shuffle');
-      gsap.to(cardEl,{x:-320,y:-28,rotation:-12,opacity:0,duration:.32,ease:'power2.in',
-        onComplete:()=>{ rip.idx++; renderRevealCard(); }});
-    } else {
-      rip.idx++; ripDots();
-      openResults();
-    }
+    destroyTilt();
+    playSound('shuffle');
+    gsap.to(cardEl,{x:-320,y:-28,rotation:-12,opacity:0,duration:.32,ease:'power2.in',
+      onComplete:()=>{ rip.idx++; renderRevealCard(); }});
   });
 }
-
-/* ============================================================
-   RESULTS / DECISIONS
-   ============================================================ */
-function openResults(){
-  const rip=state.rip;
-  rip.cards.forEach(c=>c.decision='vault');
-  show('results');
-  renderResults();
-}
-function renderResults(){
-  const rip=state.rip;
-  const pulled=rip.cards.reduce((s,c)=>s+c.value,0);
-  const net=pulled-rip.tier.price;
-  $('#resultSummary').innerHTML=`
-    <div class="cell"><b>${money(rip.tier.price)}</b><span>Spent</span></div>
-    <div class="cell"><b>${money(pulled)}</b><span>Pulled</span></div>
-    <div class="cell"><b>${net>=0?'+':'−'}${money(Math.abs(net))}</b><span>Net</span></div>`;
-  $('#sellAll').textContent=`Sell all for ${money(pulled)}`;
-  const host=$('#resultRows'); host.innerHTML='';
-  rip.cards.forEach(c=>{
-    const row=el('div','result-row');
-    const bits=[`${c.year} ${c.set}`, c.parallel];
-    if(c.serial) bits.push('#'+c.serial);
-    if(c.grade) bits.push(c.grade);
-    row.innerHTML=`
-      <div class="thumb">${miniCardHTML(c)}</div>
-      <div class="info">
-        <div>
-          <div class="nm">${c.player}${c.bonus?' <span class="bonus-word">· Bonus</span>':''}</div>
-          <div class="dt">${bits.join(' · ')}</div>
-        </div>
-        <div>
-          <div class="val">${money(c.value)}</div>
-          <div class="seg">
-            <button data-d="vault" class="${c.decision==='vault'?'on':''}">Vault</button>
-            <button data-d="sell"  class="${c.decision==='sell'?'on':''}">Sell for ${money(c.value)}</button>
-          </div>
-        </div>
-      </div>`;
-    row.querySelectorAll('.seg button').forEach(b=>{
-      b.addEventListener('click',()=>{ c.decision=b.dataset.d; playSound('flip'); haptic(8); renderResults(); });
-    });
-    host.appendChild(row);
-  });
-}
-$('#sellAll').addEventListener('click',()=>{
-  state.rip.cards.forEach(c=>c.decision='sell');
-  playSound('cash'); haptic(8);
-  renderResults();
-});
-$('#confirmDecisions').addEventListener('click',()=>{
-  const rip=state.rip;
-  const sold=rip.cards.filter(c=>c.decision==='sell');
-  const kept=rip.cards.filter(c=>c.decision==='vault');
-  const ship=rip.cards.filter(c=>c.decision==='ship');
-  const pulled=rip.cards.reduce((s,c)=>s+c.value,0);
-  const bonusNote = rip.cards.some(c=>c.bonus) ? ' + bonus' : '';
+/* one decision for the whole pull: sell it back or vault it */
+function finishRip(decision){
+  const rip=state.rip; if(!rip) return;
+  const cards=rip.cards;
+  const pulled=cards.reduce((s,c)=>s+c.value,0);
+  const bonusNote=cards.some(c=>c.bonus)?' + bonus':'';
   state.ledger.unshift({label:`Ripped ${rip.tier.name}`, sub:`${now()} · pulled ${money(pulled)}${bonusNote}`, amt:-rip.tier.price});
-  sold.forEach(c=>{
-    state.balance+=c.value;
-    state.ledger.unshift({label:`Sold back: ${c.player} ${c.parallel}`, sub:`${now()} · instant credit`, amt:+c.value});
-  });
-  kept.forEach(c=>{ c.tag=null; state.vault.unshift(c); });
-  if(ship.length){
-    ship.forEach(c=>{ c.tag='Shipping'; state.vault.unshift(c); });
-    state.ledger.unshift({label:`Shipment queued · ${ship.length} card${ship.length>1?'s':''}`, sub:`${now()} · confirm address in the vault`, amt:0});
+  if(decision==='sell'){
+    cards.forEach(c=>{
+      state.balance+=c.value;
+      state.ledger.unshift({label:`Sold back: ${c.player} ${c.parallel}`, sub:`${now()} · instant credit`, amt:+c.value});
+    });
+    playSound('cash');
+  }else{
+    cards.forEach(c=>{ c.tag=null; state.vault.unshift(c); });
+    playSound('flip');
   }
-  if(sold.length) playSound('cash');
   renderBalance();
   state.rip=null;
   show('shop');
-  toast(`Done. ${kept.length} vaulted, ${sold.length} sold${ship.length?`, ${ship.length} shipping`:''}.`);
-});
+  toast(decision==='sell'
+    ? `Sold back for ${money(pulled)}.`
+    : `${cards.length>1 ? cards.length+' cards' : cards[0].player} in the vault.`);
+}
 
 /* ============================================================
    VAULT
