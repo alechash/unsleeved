@@ -359,6 +359,7 @@ nav.hidden{display:none}
 }
 @keyframes dimIn{from{opacity:0}to{opacity:1}}
 .rip-foot{flex:0 0 auto;text-align:center;padding:12px 16px 22px;min-height:92px}
+.foot-row{display:flex;gap:10px;justify-content:center;margin-top:2px}
 .hint{font-size:12px;color:var(--faint);animation:hintPulse 1.6s ease-in-out infinite}
 @keyframes hintPulse{0%,100%{opacity:.5}50%{opacity:1}}
 
@@ -519,40 +520,6 @@ nav.hidden{display:none}
 .value-ticker b{color:var(--ink);font-weight:600}
 
 /* ============================================================
-   RESULTS (post-rip decisions)
-   ============================================================ */
-.summary-line{
-  display:flex;gap:24px;
-  border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);
-  padding:16px 2px;margin-bottom:6px;
-}
-.summary-line .cell b{font-size:16px;font-weight:600;display:block;font-variant-numeric:tabular-nums}
-.summary-line .cell span{font-size:11.5px;color:var(--gray)}
-.result-row{
-  display:flex;gap:16px;align-items:stretch;position:relative;
-  border-bottom:1px solid var(--hair);
-  padding:18px 2px;
-}
-.result-row .bonus-word{color:var(--gold);font-weight:600}
-.result-row .thumb{width:60px;flex:0 0 auto;aspect-ratio:5/7}
-.result-row .thumb .card3d,.result-row .thumb .flip{width:100%;height:100%}
-.result-row .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
-.result-row .info .nm{font-size:15.5px;font-weight:600;letter-spacing:-.2px}
-.result-row .info .dt{font-size:12px;color:var(--gray);margin-top:3px;line-height:1.5}
-.result-row .info .val{font-size:13px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
-.seg{display:flex;gap:8px;margin-top:10px}
-.seg button{
-  border:1px solid var(--hair);background:none;border-radius:9px;
-  padding:8px 16px;
-  font-family:var(--font);font-weight:500;font-size:13px;color:var(--gray);
-  cursor:pointer;
-  transition:all .12s;
-}
-.seg button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
-.confirm-bar{position:sticky;bottom:0;padding:14px 0 4px;background:linear-gradient(transparent,var(--bg) 40%);
-  display:flex;gap:12px;justify-content:center;align-items:center}
-
-/* ============================================================
    VAULT
    ============================================================ */
 .vault-summary{font-size:13px;color:var(--gray);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
@@ -667,18 +634,6 @@ nav.hidden{display:none}
       </div>
       <div class="rip-stage" id="ripStage"></div>
       <div class="rip-foot" id="ripFoot"></div>
-    </section>
-
-    <!-- ================= RESULTS ================= -->
-    <section class="view" id="view-results">
-      <h2>Your pull</h2>
-      <div class="sub">Vault it or sell it back, card by card.</div>
-      <div class="summary-line" id="resultSummary"></div>
-      <div id="resultRows"></div>
-      <div class="confirm-bar">
-        <button class="btn ghost" id="sellAll">Sell all</button>
-        <button class="btn" id="confirmDecisions">Confirm</button>
-      </div>
     </section>
 
     <!-- ================= VAULT ================= -->
@@ -858,31 +813,121 @@ const RARITY = {
   e:{label:'Numbered', cls:'r-epic'},
   l:{label:'Chase',    cls:'r-legendary'},
 };
+/* ---- generated inventory: a few hundred extra cards on top of the
+   curated ones. Seeded PRNG, so the pool (and the economy math) is
+   identical on every load. Players are fictional; data is fake. ---- */
+(function generatePool(){
+  const rand=(s=>()=>{ // mulberry32, fixed seed
+    s|=0; s=s+0x6D2B79F5|0;
+    let t=Math.imul(s^s>>>15,1|s);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  })(20260720);
+  const pick=a=>a[rand()*a.length|0];
+  const FIRST=['Maddox','Rylan','Dex','Cassius','Bo','Tremaine','Jalen','Cody','Marcus','Andre',
+    'Zion','Trey','Malik','Devon','Chase','Xavier','Knox','Ryder','Dante','Emmett','Colt','Jaxon',
+    'Rocco','Silas','Nico','Landon','Quincy','Omar','Reese','Tobias','Ellis','Brooks','Amari',
+    'Judah','Finn','Royce','Kane','Miles','Otto','Hendrix'];
+  const LAST=['Calloway','Vance','Merritt','Slater','Boone','Hollis','Rourke','Ashford','Delgado',
+    'Winslow','Harmon','Keller','Draper','Fontaine','Marsh','Beckett','Lockhart','Pemberton',
+    'Vaughn','Crowder','Ellery','Stanton','Mercer','Quill','Hale','Redmond','Sablan','Thorne',
+    'Whitaker','Yates','Barlow','Corbin','Dunmore','Everly','Gattis','Ingram','Joyner','Kessler',
+    'Lachlan','Moss'];
+  const POS={NFL:['QB','RB','WR','TE','CB','S','LB','EDGE'], MLB:['P','C','1B','2B','3B','SS','OF','DH']};
+  const SETS={
+    NFL:['Prizm','Select','Mosaic','Donruss Optic','Score','Absolute','Phoenix','Prestige'],
+    MLB:['Topps Chrome','Bowman Chrome','Topps Series 1','Topps Heritage','Stadium Club','Topps Finest','Bowman','Topps Big League'],
+  };
+  const PAR={
+    c:['Base','Base','Base','Rated Rookie','Checkerboard'],
+    u:['Refractor','Holo','Green','Red White & Blue','Hyper','Orange Lazer','Sepia Refractor','Silver'],
+    r:['Blue Refractor','Purple Refractor','Concourse Blue','Tri-Color','Aqua Shimmer','Blue Ice','Zebra','Snakeskin'],
+    e:['RC Auto Holo','Gold Auto','Auto Refractor','RC Patch Auto','Orange Auto'],
+    l:['RC Auto Gold','Superfractor Auto','Black Finite Auto','Logoman Patch Auto'],
+  };
+  const SERIAL_MAX={r:[299,249,199,150,125], e:[99,75,50,49,25], l:[25,10,10,5,5]};
+  // [band, count, low $, high $, skew toward the low end]
+  const PLAN=[
+    ['c',130,  .75,   4.75, 1.6],
+    ['u', 90,  5,    34,    1.8],
+    ['r', 55, 36,   145,    1.7],
+    ['e', 35,155,  1400,    2.0],
+    ['l', 12,1500, 5200,    1.6],
+  ];
+  const quant=(v,q)=>Math.round(v/q)*q;
+  PLAN.forEach(([band,n,lo,hi,skew])=>{
+    for(let i=0;i<n;i++){
+      const sport=rand()<.5?'NFL':'MLB';
+      let v=lo*Math.pow(hi/lo,Math.pow(rand(),skew));
+      v=quant(v, band==='c'?.25 : band==='u'?.5 : band==='l'?25 : 1);
+      v=Math.min(hi,Math.max(lo,v));
+      const smax=SERIAL_MAX[band]?pick(SERIAL_MAX[band]):null;
+      POOL.push({
+        player:`${pick(FIRST)} ${pick(LAST)}`,
+        team:pick(Object.keys(TEAMS)), pos:pick(POS[sport]), sport,
+        year:2018+(rand()*8|0),
+        set:pick(SETS[sport]),
+        parallel:pick(PAR[band]),
+        serial:smax?`${1+(rand()*smax|0)}/${smax}`:null,
+        grade:((band==='e'||band==='l')&&rand()<.35)?pick(['PSA 9','PSA 10','BGS 9.5'])
+             :(band==='r'&&rand()<.1?'PSA 9':null),
+        value:v,
+      });
+    }
+  });
+})();
+
 /* Value decides tier: a card is banded by what it's worth. */
 const RARITY_ORDER = ['c','u','r','e','l'];
 const RARITY_BANDS = {c:5, u:35, r:150, e:1500, l:Infinity}; // upper bounds, $
 const rarityFor = v => RARITY_ORDER.find(k => v < RARITY_BANDS[k]) || 'l';
 POOL.forEach(c => c.rarity = rarityFor(c.value));
 
-/* Every pack = 1 card. `min` is the guaranteed floor value of that card.
-   `bonusChance` = odds the pack hides a free bonus card on top.
-   `weights` = rarity odds per pack, tuned so the expected payout
-   (incl. floor filtering and bonus cards) is ~82-88% of price —
-   the house keeps a 12-18% edge on every tier, long run.
-   `color` = the tier's accent, used on wrapper, icon, and card back. */
+/* Every pack = 1 card, drawn from per-pack VALUE BUCKETS in the style
+   of Rips by Triumph: six named tiers, each with its own dollar range
+   (scaled to the pack price) and a precise pull percentage. Ranges
+   overlap on purpose, exactly like the real thing. Percentages are
+   tuned against the pool so long-run payout is ~84% of price — the
+   house keeps a ~16% edge on every pack.
+   The guaranteed minimum is the cheapest bucket's floor; `bonusChance`
+   = odds the pack hides a free bonus card on top. */
 const TIERS = [
-  {id:'starter', name:'Starter', price:5, min:2, bonusChance:.10, color:'#4f7fa8', icon:'zap',
-   weights:{c:.963, u:.03, r:.006, e:.001, l:0},
-   chase:'Puka Nacua Silver RC'},
-  {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.12, color:'#3f7f5c', icon:'sparkles',
-   weights:{c:0, u:.9868, r:.012, e:.001, l:.0002},
-   chase:'Jayden Daniels RC Auto /10'},
-  {id:'prime', name:'Prime', price:100, min:30, bonusChance:.15, color:'#8a4fa8', icon:'gem',
-   weights:{c:0, u:.076, r:.83, e:.09, l:.004},
-   chase:'C.J. Stroud RC Auto /25'},
-  {id:'grail', name:'Grail', price:500, min:250, bonusChance:.20, color:'#c9a227', icon:'crown',
-   weights:{c:0, u:0, r:0, e:.985, l:.015},
-   chase:'Shohei Ohtani PSA 10 rookie'},
+  {id:'starter', name:'Starter', price:5, bonusChance:.10, color:'#4f7fa8', icon:'zap',
+   buckets:[
+     ['Common',       1,     3, .561],
+     ['Uncommon',     2,     5, .270],
+     ['Rare',         5,     8, .100],
+     ['Epic',         8,    12, .040],
+     ['Legendary',   12,    25, .025],
+     ['Grail',       25,   900, .004],
+   ]},
+  {id:'clubhouse', name:'Clubhouse', price:25, bonusChance:.12, color:'#3f7f5c', icon:'sparkles',
+   buckets:[
+     ['Common',       8,    18, .572],
+     ['Uncommon',    12,    25, .290],
+     ['Rare',        25,    40, .080],
+     ['Epic',        40,    75, .036],
+     ['Legendary',   75,   250, .018],
+     ['Grail',      250,  1500, .004],
+   ]},
+  {id:'prime', name:'Prime', price:100, bonusChance:.15, color:'#8a4fa8', icon:'gem',
+   buckets:[
+     ['Common',      30,    65, .558],
+     ['Uncommon',    50,   100, .290],
+     ['Rare',       100,   175, .092],
+     ['Epic',       175,   350, .040],
+     ['Legendary',  350,   900, .017],
+     ['Grail',      900,  4500, .003],
+   ]},
+  {id:'grail', name:'Grail', price:500, bonusChance:.20, color:'#c9a227', icon:'crown',
+   buckets:[
+     ['Common',     150,   300, .459],
+     ['Uncommon',   200,   450, .300],
+     ['Rare',       450,   700, .120],
+     ['Epic',       700,   900, .070],
+     ['Legendary', 1500,  2750, .040],
+     ['Grail',     2750,  4500, .011],
+   ]},
 ];
 
 /* ============================================================
@@ -938,7 +983,8 @@ function cardFrontHTML(c){
   const bits = [c.parallel];
   if(c.serial) bits.push('#'+c.serial);
   if(c.grade) bits.push(c.grade);
-  const rarityBit = c.rarity==='l' ? '<span class="chase-word">Chase</span>' : r.label;
+  const rarityBit = c.rarity==='l' ? '<span class="chase-word">Chase</span>'
+    : (r.label===c.parallel ? '' : r.label); // avoid "Base · Base"
   return `<div class="cardface card-front ${r.cls}" style="--team1:${t1};--team2:${t2}">
     ${c.bonus ? `<div class="cf-bonus">Bonus</div>` : ''}
     <div class="cf-art">
@@ -946,7 +992,7 @@ function cardFrontHTML(c){
       <div class="monogram" data-atropos-offset="4">${initials}</div>
     </div>
     <div class="cf-name">${c.player}</div>
-    <div class="cf-meta">${c.year} ${c.set} · ${bits.join(' · ')} · ${rarityBit}</div>
+    <div class="cf-meta">${[`${c.year} ${c.set}`,...bits,rarityBit].filter(Boolean).join(' · ')}</div>
     <div class="cf-value" data-val="${c.value}">${money(c.value)}</div>
   </div>`;
 }
@@ -968,7 +1014,7 @@ function show(view){
   $$('.view').forEach(v=>v.classList.remove('active'));
   $('#view-'+view).classList.add('active');
   $$('#tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.nav===view));
-  $('#tabbar').classList.toggle('hidden', view==='rip' || view==='results');
+  $('#tabbar').classList.toggle('hidden', view==='rip');
   if(view!=='rip'){ destroyTilt(); Pack3D.unmount(); }
   if(view==='vault') renderVault();
   if(view==='wallet') renderWallet();
@@ -983,6 +1029,10 @@ function fmtOdds(p){
   if(p>=.005) return (Math.round(p*1000)/10)+'%';
   return '1 in '+Math.round(1/p).toLocaleString('en-US');
 }
+const fmtPct=p=>{ // buckets always read as percentages, Triumph-style
+  const v=p*100;
+  return (v>=1 ? Math.round(v*10)/10 : Math.round(v*100)/100)+'%';
+};
 function renderShop(){
   const g=$('#tierGrid'); g.innerHTML='';
   TIERS.forEach(t=>{
@@ -1002,26 +1052,26 @@ function renderShop(){
     g.appendChild(tile);
   });
 }
-/* per-card odds, Rips-style: every pullable card with value + odds */
-function packOddsList(t){
-  return POOL
-    .filter(c=>t.effWeights[c.rarity]>0 && c.value>=t.min)
-    .map(c=>({c, p:t.effWeights[c.rarity]/byRarity(c.rarity).filter(x=>x.value>=t.min).length}))
-    .sort((a,b)=>b.c.value-a.c.value);
-}
+/* Triumph-style odds: one row per bucket — its own dollar range and
+   a precise pull %, different for every pack. */
 function openPackSheet(t){
   $('#psTitle').textContent=`${t.name}`;
   $('#psSub').textContent=`One card per pack · ${money(t.min)} minimum guaranteed · bonus card in ${Math.round(t.bonusChance*100)}% of packs`;
   const host=$('#psList'); host.innerHTML='';
-  packOddsList(t).forEach(({c,p})=>{
-    const bits=[`${c.year} ${c.set}`,c.parallel];
-    if(c.serial) bits.push('#'+c.serial);
-    if(c.grade) bits.push(c.grade);
+  // the one card worth showing: the top prize
+  const top=t.buckets.flatMap(b=>b.cards).reduce((a,c)=>c.value>a.value?c:a);
+  const topOdds=t.buckets.reduce((s,b)=>s+(b.cards.includes(top)?b.pct/b.cards.length:0),0);
+  const prize=el('div','odds-row');
+  prize.innerHTML=`
+    <div class="thumb">${miniCardHTML(top)}</div>
+    <div class="oi"><div class="on">Top prize · ${top.player}</div><div class="od">${top.year} ${top.set} · ${top.parallel}</div></div>
+    <div class="ov"><b>${money(top.value)}</b><span>${fmtOdds(topOdds)}</span></div>`;
+  host.appendChild(prize);
+  t.buckets.forEach(b=>{
     const row=el('div','odds-row');
     row.innerHTML=`
-      <div class="thumb">${miniCardHTML(c)}</div>
-      <div class="oi"><div class="on">${c.player}</div><div class="od">${bits.join(' · ')}</div></div>
-      <div class="ov"><b>${money(c.value)}</b><span>${fmtOdds(p)}</span></div>`;
+      <div class="oi"><div class="on">${b.label}</div><div class="od">${money(b.lo)} – ${money(b.hi)} · ${b.cards.length} card${b.cards.length>1?'s':''}</div></div>
+      <div class="ov"><b>${fmtPct(b.pct)}</b></div>`;
     host.appendChild(row);
   });
   $('#psRip').textContent=`Rip for $${t.price}`;
@@ -1034,38 +1084,30 @@ function openPackSheet(t){
    ============================================================ */
 const byRarity = r => POOL.filter(c=>c.rarity===r);
 const pick = arr => arr[Math.random()*arr.length|0];
-/* Effective odds: weight on a rarity whose cards can't reach the tier's
-   floor slides up to the first rarity that can. Computed once at boot;
-   also feeds the odds printed in the shop and the advertised max pull. */
+/* Resolve each tier's buckets against the pool once at boot:
+   which cards live in each dollar range, the guaranteed floor
+   (cheapest bucket's lo), and the advertised max pull. */
 function calibrateTiers(){
   TIERS.forEach(t=>{
-    const eff={c:0,u:0,r:0,e:0,l:0};
-    RARITY_ORDER.forEach((k,idx)=>{
-      let i=idx;
-      while(i<RARITY_ORDER.length-1 && !byRarity(RARITY_ORDER[i]).some(c=>c.value>=t.min)) i++;
-      eff[RARITY_ORDER[i]] += t.weights[k]||0;
+    t.buckets=t.buckets.map(([label,lo,hi,pct])=>({
+      label, lo, hi, pct,
+      cards:POOL.filter(c=>c.value>=lo && c.value<=hi),
+    }));
+    t.buckets.forEach(b=>{
+      if(!b.cards.length) console.warn(`${t.id}: empty bucket ${b.label} $${b.lo}-$${b.hi}`);
     });
-    t.effWeights=eff;
-    t.maxPull=Math.max(...POOL.filter(c=>eff[c.rarity]>0 && c.value>=t.min).map(c=>c.value));
+    t.min=Math.min(...t.buckets.map(b=>b.lo));
+    t.maxPull=Math.max(...t.buckets.flatMap(b=>b.cards.map(c=>c.value)));
   });
 }
 calibrateTiers();
-function rollRarity(tier){
+function rollBucket(tier){
   let r=Math.random();
-  for(const k of RARITY_ORDER){ r-=tier.effWeights[k]; if(r<0) return k; }
-  return RARITY_ORDER.filter(k=>tier.effWeights[k]>0).pop() || 'c';
-}
-/* pick a card of the rolled rarity worth at least `min`;
-   escalate rarity until the floor is satisfiable */
-function pickWithFloor(rarity, min){
-  for(let i=RARITY_ORDER.indexOf(rarity); i<RARITY_ORDER.length; i++){
-    const opts = byRarity(RARITY_ORDER[i]).filter(c=>c.value>=min);
-    if(opts.length) return pick(opts);
-  }
-  return pick(byRarity('l'));
+  for(const b of tier.buckets){ r-=b.pct; if(r<0 && b.cards.length) return b; }
+  return tier.buckets[0];
 }
 function buildPack(tier){
-  const cards=[mkCard(pickWithFloor(rollRarity(tier), tier.min))];
+  const cards=[mkCard(pick(rollBucket(tier).cards))];
   if(Math.random() < tier.bonusChance){
     const bonus=mkCard(Math.random()<.8 ? pick(byRarity('c')) : pick(byRarity('u')));
     bonus.bonus=true;
@@ -1672,96 +1714,55 @@ function showNextButton(){
   const rip=state.rip;
   const last = rip.idx >= rip.cards.length-1;
   const nextIsBonus = !last && rip.cards[rip.idx+1].bonus;
+  if(last){
+    // decide right here: no interstitial results screen
+    const pulled=rip.cards.reduce((s,c)=>s+c.value,0);
+    const many=rip.cards.length>1;
+    $('#ripFoot').innerHTML=`
+      <div class="value-ticker">Pack value <b>${money(pulled)}</b></div>
+      <div class="foot-row">
+        <button class="btn ghost" id="vaultPull">${many?'Vault all':'Vault'}</button>
+        <button class="btn gold" id="sellPull">Sell for ${money(pulled)}</button>
+      </div>`;
+    $('#vaultPull').addEventListener('click',()=>finishRip('vault'));
+    $('#sellPull').addEventListener('click',()=>finishRip('sell'));
+    return;
+  }
   $('#ripFoot').innerHTML=`
     <div class="value-ticker">Pack value so far <b>${money(rip.revealedValue)}</b></div>
-    <button class="btn ${last?'gold':''}" id="nextCard">${last?'See your pull':(nextIsBonus?'There\'s a bonus in here':'Next card')}</button>`;
+    <button class="btn" id="nextCard">${nextIsBonus?'There\'s a bonus in here':'Next card'}</button>`;
   $('#nextCard').addEventListener('click',()=>{
     const cardEl=$('#revealCard');
-    if(!last){
-      destroyTilt();
-      playSound('shuffle');
-      gsap.to(cardEl,{x:-320,y:-28,rotation:-12,opacity:0,duration:.32,ease:'power2.in',
-        onComplete:()=>{ rip.idx++; renderRevealCard(); }});
-    } else {
-      rip.idx++; ripDots();
-      openResults();
-    }
+    destroyTilt();
+    playSound('shuffle');
+    gsap.to(cardEl,{x:-320,y:-28,rotation:-12,opacity:0,duration:.32,ease:'power2.in',
+      onComplete:()=>{ rip.idx++; renderRevealCard(); }});
   });
 }
-
-/* ============================================================
-   RESULTS / DECISIONS
-   ============================================================ */
-function openResults(){
-  const rip=state.rip;
-  rip.cards.forEach(c=>c.decision='vault');
-  show('results');
-  renderResults();
-}
-function renderResults(){
-  const rip=state.rip;
-  const pulled=rip.cards.reduce((s,c)=>s+c.value,0);
-  const net=pulled-rip.tier.price;
-  $('#resultSummary').innerHTML=`
-    <div class="cell"><b>${money(rip.tier.price)}</b><span>Spent</span></div>
-    <div class="cell"><b>${money(pulled)}</b><span>Pulled</span></div>
-    <div class="cell"><b>${net>=0?'+':'−'}${money(Math.abs(net))}</b><span>Net</span></div>`;
-  $('#sellAll').textContent=`Sell all for ${money(pulled)}`;
-  const host=$('#resultRows'); host.innerHTML='';
-  rip.cards.forEach(c=>{
-    const row=el('div','result-row');
-    const bits=[`${c.year} ${c.set}`, c.parallel];
-    if(c.serial) bits.push('#'+c.serial);
-    if(c.grade) bits.push(c.grade);
-    row.innerHTML=`
-      <div class="thumb">${miniCardHTML(c)}</div>
-      <div class="info">
-        <div>
-          <div class="nm">${c.player}${c.bonus?' <span class="bonus-word">· Bonus</span>':''}</div>
-          <div class="dt">${bits.join(' · ')}</div>
-        </div>
-        <div>
-          <div class="val">${money(c.value)}</div>
-          <div class="seg">
-            <button data-d="vault" class="${c.decision==='vault'?'on':''}">Vault</button>
-            <button data-d="sell"  class="${c.decision==='sell'?'on':''}">Sell for ${money(c.value)}</button>
-          </div>
-        </div>
-      </div>`;
-    row.querySelectorAll('.seg button').forEach(b=>{
-      b.addEventListener('click',()=>{ c.decision=b.dataset.d; playSound('flip'); haptic(8); renderResults(); });
-    });
-    host.appendChild(row);
-  });
-}
-$('#sellAll').addEventListener('click',()=>{
-  state.rip.cards.forEach(c=>c.decision='sell');
-  playSound('cash'); haptic(8);
-  renderResults();
-});
-$('#confirmDecisions').addEventListener('click',()=>{
-  const rip=state.rip;
-  const sold=rip.cards.filter(c=>c.decision==='sell');
-  const kept=rip.cards.filter(c=>c.decision==='vault');
-  const ship=rip.cards.filter(c=>c.decision==='ship');
-  const pulled=rip.cards.reduce((s,c)=>s+c.value,0);
-  const bonusNote = rip.cards.some(c=>c.bonus) ? ' + bonus' : '';
+/* one decision for the whole pull: sell it back or vault it */
+function finishRip(decision){
+  const rip=state.rip; if(!rip) return;
+  const cards=rip.cards;
+  const pulled=cards.reduce((s,c)=>s+c.value,0);
+  const bonusNote=cards.some(c=>c.bonus)?' + bonus':'';
   state.ledger.unshift({label:`Ripped ${rip.tier.name}`, sub:`${now()} · pulled ${money(pulled)}${bonusNote}`, amt:-rip.tier.price});
-  sold.forEach(c=>{
-    state.balance+=c.value;
-    state.ledger.unshift({label:`Sold back: ${c.player} ${c.parallel}`, sub:`${now()} · instant credit`, amt:+c.value});
-  });
-  kept.forEach(c=>{ c.tag=null; state.vault.unshift(c); });
-  if(ship.length){
-    ship.forEach(c=>{ c.tag='Shipping'; state.vault.unshift(c); });
-    state.ledger.unshift({label:`Shipment queued · ${ship.length} card${ship.length>1?'s':''}`, sub:`${now()} · confirm address in the vault`, amt:0});
+  if(decision==='sell'){
+    cards.forEach(c=>{
+      state.balance+=c.value;
+      state.ledger.unshift({label:`Sold back: ${c.player} ${c.parallel}`, sub:`${now()} · instant credit`, amt:+c.value});
+    });
+    playSound('cash');
+  }else{
+    cards.forEach(c=>{ c.tag=null; state.vault.unshift(c); });
+    playSound('flip');
   }
-  if(sold.length) playSound('cash');
   renderBalance();
   state.rip=null;
   show('shop');
-  toast(`Done. ${kept.length} vaulted, ${sold.length} sold${ship.length?`, ${ship.length} shipping`:''}.`);
-});
+  toast(decision==='sell'
+    ? `Sold back for ${money(pulled)}.`
+    : `${cards.length>1 ? cards.length+' cards' : cards[0].player} in the vault.`);
+}
 
 /* ============================================================
    VAULT
