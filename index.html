@@ -883,21 +883,51 @@ const RARITY_BANDS = {c:5, u:35, r:150, e:1500, l:Infinity}; // upper bounds, $
 const rarityFor = v => RARITY_ORDER.find(k => v < RARITY_BANDS[k]) || 'l';
 POOL.forEach(c => c.rarity = rarityFor(c.value));
 
-/* Every pack = 1 card. `min` is the guaranteed floor value of that card.
-   `bonusChance` = odds the pack hides a free bonus card on top.
-   `weights` = rarity odds per pack, tuned so the expected payout
-   (incl. floor filtering and bonus cards) is ~82-88% of price —
-   the house keeps a 12-18% edge on every tier, long run.
-   `color` = the tier's accent, used on wrapper, icon, and card back. */
+/* Every pack = 1 card, drawn from per-pack VALUE BUCKETS in the style
+   of Rips by Triumph: six named tiers, each with its own dollar range
+   (scaled to the pack price) and a precise pull percentage. Ranges
+   overlap on purpose, exactly like the real thing. Percentages are
+   tuned against the pool so long-run payout is ~84% of price — the
+   house keeps a ~16% edge on every pack.
+   The guaranteed minimum is the cheapest bucket's floor; `bonusChance`
+   = odds the pack hides a free bonus card on top. */
 const TIERS = [
-  {id:'starter', name:'Starter', price:5, min:2, bonusChance:.10, color:'#4f7fa8', icon:'zap',
-   weights:{c:.963, u:.03, r:.006, e:.001, l:0}},
-  {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.12, color:'#3f7f5c', icon:'sparkles',
-   weights:{c:0, u:.9458, r:.053, e:.001, l:.0002}},
-  {id:'prime', name:'Prime', price:100, min:30, bonusChance:.15, color:'#8a4fa8', icon:'gem',
-   weights:{c:0, u:.076, r:.857, e:.063, l:.004}},
-  {id:'grail', name:'Grail', price:500, min:150, bonusChance:.20, color:'#c9a227', icon:'crown',
-   weights:{c:0, u:0, r:0, e:.964, l:.036}},
+  {id:'starter', name:'Starter', price:5, bonusChance:.10, color:'#4f7fa8', icon:'zap',
+   buckets:[
+     ['Common',       1,     3, .561],
+     ['Uncommon',     2,     5, .270],
+     ['Rare',         5,     8, .100],
+     ['Epic',         8,    12, .040],
+     ['Legendary',   12,    25, .025],
+     ['Grail',       25,   900, .004],
+   ]},
+  {id:'clubhouse', name:'Clubhouse', price:25, bonusChance:.12, color:'#3f7f5c', icon:'sparkles',
+   buckets:[
+     ['Common',       8,    18, .572],
+     ['Uncommon',    12,    25, .290],
+     ['Rare',        25,    40, .080],
+     ['Epic',        40,    75, .036],
+     ['Legendary',   75,   250, .018],
+     ['Grail',      250,  1500, .004],
+   ]},
+  {id:'prime', name:'Prime', price:100, bonusChance:.15, color:'#8a4fa8', icon:'gem',
+   buckets:[
+     ['Common',      30,    65, .558],
+     ['Uncommon',    50,   100, .290],
+     ['Rare',       100,   175, .092],
+     ['Epic',       175,   350, .040],
+     ['Legendary',  350,   900, .017],
+     ['Grail',      900,  4500, .003],
+   ]},
+  {id:'grail', name:'Grail', price:500, bonusChance:.20, color:'#c9a227', icon:'crown',
+   buckets:[
+     ['Common',     150,   300, .459],
+     ['Uncommon',   200,   450, .300],
+     ['Rare',       450,   700, .120],
+     ['Epic',       700,   900, .070],
+     ['Legendary', 1500,  2750, .040],
+     ['Grail',     2750,  4500, .011],
+   ]},
 ];
 
 /* ============================================================
@@ -999,6 +1029,10 @@ function fmtOdds(p){
   if(p>=.005) return (Math.round(p*1000)/10)+'%';
   return '1 in '+Math.round(1/p).toLocaleString('en-US');
 }
+const fmtPct=p=>{ // buckets always read as percentages, Triumph-style
+  const v=p*100;
+  return (v>=1 ? Math.round(v*10)/10 : Math.round(v*100)/100)+'%';
+};
 function renderShop(){
   const g=$('#tierGrid'); g.innerHTML='';
   TIERS.forEach(t=>{
@@ -1018,35 +1052,26 @@ function renderShop(){
     g.appendChild(tile);
   });
 }
-/* odds by value range: one row per pullable band, not per card */
-function packRanges(t){
-  return RARITY_ORDER
-    .filter(k=>t.effWeights[k]>0)
-    .map(k=>{
-      const vals=byRarity(k).filter(c=>c.value>=t.min).map(c=>c.value);
-      return {k, pct:t.effWeights[k], lo:Math.min(...vals), hi:Math.max(...vals), n:vals.length};
-    })
-    .reverse(); // biggest money first
-}
+/* Triumph-style odds: one row per bucket — its own dollar range and
+   a precise pull %, different for every pack. */
 function openPackSheet(t){
   $('#psTitle').textContent=`${t.name}`;
   $('#psSub').textContent=`One card per pack · ${money(t.min)} minimum guaranteed · bonus card in ${Math.round(t.bonusChance*100)}% of packs`;
   const host=$('#psList'); host.innerHTML='';
   // the one card worth showing: the top prize
-  const top=POOL.filter(c=>t.effWeights[c.rarity]>0 && c.value>=t.min)
-    .reduce((a,c)=>c.value>a.value?c:a);
-  const topOdds=t.effWeights[top.rarity]/byRarity(top.rarity).filter(c=>c.value>=t.min).length;
+  const top=t.buckets.flatMap(b=>b.cards).reduce((a,c)=>c.value>a.value?c:a);
+  const topOdds=t.buckets.reduce((s,b)=>s+(b.cards.includes(top)?b.pct/b.cards.length:0),0);
   const prize=el('div','odds-row');
   prize.innerHTML=`
     <div class="thumb">${miniCardHTML(top)}</div>
     <div class="oi"><div class="on">Top prize · ${top.player}</div><div class="od">${top.year} ${top.set} · ${top.parallel}</div></div>
     <div class="ov"><b>${money(top.value)}</b><span>${fmtOdds(topOdds)}</span></div>`;
   host.appendChild(prize);
-  packRanges(t).forEach(({k,pct,lo,hi,n})=>{
+  t.buckets.forEach(b=>{
     const row=el('div','odds-row');
     row.innerHTML=`
-      <div class="oi"><div class="on">${money(lo)} – ${money(hi)}</div><div class="od">${RARITY[k].label} · ${n} card${n>1?'s':''}</div></div>
-      <div class="ov"><b>${fmtOdds(pct)}</b></div>`;
+      <div class="oi"><div class="on">${b.label}</div><div class="od">${money(b.lo)} – ${money(b.hi)} · ${b.cards.length} card${b.cards.length>1?'s':''}</div></div>
+      <div class="ov"><b>${fmtPct(b.pct)}</b></div>`;
     host.appendChild(row);
   });
   $('#psRip').textContent=`Rip for $${t.price}`;
@@ -1059,38 +1084,30 @@ function openPackSheet(t){
    ============================================================ */
 const byRarity = r => POOL.filter(c=>c.rarity===r);
 const pick = arr => arr[Math.random()*arr.length|0];
-/* Effective odds: weight on a rarity whose cards can't reach the tier's
-   floor slides up to the first rarity that can. Computed once at boot;
-   also feeds the odds printed in the shop and the advertised max pull. */
+/* Resolve each tier's buckets against the pool once at boot:
+   which cards live in each dollar range, the guaranteed floor
+   (cheapest bucket's lo), and the advertised max pull. */
 function calibrateTiers(){
   TIERS.forEach(t=>{
-    const eff={c:0,u:0,r:0,e:0,l:0};
-    RARITY_ORDER.forEach((k,idx)=>{
-      let i=idx;
-      while(i<RARITY_ORDER.length-1 && !byRarity(RARITY_ORDER[i]).some(c=>c.value>=t.min)) i++;
-      eff[RARITY_ORDER[i]] += t.weights[k]||0;
+    t.buckets=t.buckets.map(([label,lo,hi,pct])=>({
+      label, lo, hi, pct,
+      cards:POOL.filter(c=>c.value>=lo && c.value<=hi),
+    }));
+    t.buckets.forEach(b=>{
+      if(!b.cards.length) console.warn(`${t.id}: empty bucket ${b.label} $${b.lo}-$${b.hi}`);
     });
-    t.effWeights=eff;
-    t.maxPull=Math.max(...POOL.filter(c=>eff[c.rarity]>0 && c.value>=t.min).map(c=>c.value));
+    t.min=Math.min(...t.buckets.map(b=>b.lo));
+    t.maxPull=Math.max(...t.buckets.flatMap(b=>b.cards.map(c=>c.value)));
   });
 }
 calibrateTiers();
-function rollRarity(tier){
+function rollBucket(tier){
   let r=Math.random();
-  for(const k of RARITY_ORDER){ r-=tier.effWeights[k]; if(r<0) return k; }
-  return RARITY_ORDER.filter(k=>tier.effWeights[k]>0).pop() || 'c';
-}
-/* pick a card of the rolled rarity worth at least `min`;
-   escalate rarity until the floor is satisfiable */
-function pickWithFloor(rarity, min){
-  for(let i=RARITY_ORDER.indexOf(rarity); i<RARITY_ORDER.length; i++){
-    const opts = byRarity(RARITY_ORDER[i]).filter(c=>c.value>=min);
-    if(opts.length) return pick(opts);
-  }
-  return pick(byRarity('l'));
+  for(const b of tier.buckets){ r-=b.pct; if(r<0 && b.cards.length) return b; }
+  return tier.buckets[0];
 }
 function buildPack(tier){
-  const cards=[mkCard(pickWithFloor(rollRarity(tier), tier.min))];
+  const cards=[mkCard(pick(rollBucket(tier).cards))];
   if(Math.random() < tier.bonusChance){
     const bonus=mkCard(Math.random()<.8 ? pick(byRarity('c')) : pick(byRarity('u')));
     bonus.bonus=true;
