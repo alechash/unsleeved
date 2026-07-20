@@ -21,7 +21,8 @@
    object: foil material, studio lighting, physical tear), GSAP
    (choreography), Atropos (card tilt + layered parallax),
    canvas-confetti (celebrations), Space Grotesk via Fontsource
-   (display face), Lucide (icons).
+   (display face), Lucide (icons). Sound effects are synthesized
+   in-file with WebAudio — no audio assets.
    No backend. All data is fake.
    Every pack: 1 card, guaranteed floor value, occasional bonus.
 
@@ -115,6 +116,14 @@ header{
   white-space:nowrap;
 }
 .wallet-chip:active{opacity:.5}
+.head-right{display:flex;align-items:center;gap:12px}
+.sfx-chip{
+  background:none;border:none;cursor:pointer;
+  width:28px;height:28px;display:grid;place-items:center;
+  color:var(--faint);transition:color .12s;
+}
+.sfx-chip svg{width:16px;height:16px;stroke:currentColor}
+.sfx-chip:active{color:var(--ink)}
 
 /* ---------- views / scroll ---------- */
 main{flex:1 1 auto;position:relative;overflow:hidden}
@@ -609,7 +618,10 @@ nav.hidden{display:none}
 
   <header>
     <div class="brand"><h1>Unsleeved</h1></div>
-    <button class="wallet-chip" id="walletChip" title="Wallet">$<em id="balTop" style="font-style:normal">0.00</em></button>
+    <div class="head-right">
+      <button class="sfx-chip" id="sfxToggle" aria-label="Toggle sound"></button>
+      <button class="wallet-chip" id="walletChip" title="Wallet">$<em id="balTop" style="font-style:normal">0.00</em></button>
+    </div>
   </header>
 
   <main>
@@ -714,15 +726,95 @@ nav.hidden{display:none}
 <script src="assets/three.bundle.min.js"></script>
 <script>
 /* ============================================================
-   SOUND HOOKS — wire real audio here later.
-   Every game event dispatches through playSound(); swap the body
-   for e.g.  SFX[name].currentTime = 0; SFX[name].play();
-   Events fired: grab, tear-progress, tear, shuffle, flip,
-                 reveal-common, reveal-rare, charge, hit, bonus, cash, ship
+   SOUND — synthesized with WebAudio, no audio files.
+   Every game event routes through playSound(); each event name has
+   a small synth recipe below. The AudioContext is created lazily on
+   the first user-gesture-driven sound (autoplay policy), and a mute
+   toggle in the header persists to localStorage.
+   Events: grab, tear-progress, tear, shuffle, flip, reveal-common,
+           reveal-rare, charge, hit, bonus, cash, ship
    ============================================================ */
+const SFX=(()=>{
+  let ctx=null, master=null;
+  let enabled=true;
+  try{ enabled=(localStorage.getItem('unsleeved-sfx')??'1')==='1'; }catch(e){}
+  function ensure(){
+    if(!ctx){
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC) return false;
+      ctx=new AC();
+      master=ctx.createGain(); master.gain.value=.5;
+      master.connect(ctx.destination);
+    }
+    if(ctx.state==='suspended') ctx.resume();
+    return true;
+  }
+  function tone({f=440,f2=null,t=.15,type='sine',g=.2,at=.005,delay=0}){
+    const s=ctx.currentTime+delay;
+    const o=ctx.createOscillator(), gn=ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,s);
+    if(f2) o.frequency.exponentialRampToValueAtTime(f2,s+t);
+    gn.gain.setValueAtTime(0,s);
+    gn.gain.linearRampToValueAtTime(g,s+at);
+    gn.gain.exponentialRampToValueAtTime(.0001,s+t);
+    o.connect(gn).connect(master); o.start(s); o.stop(s+t+.05);
+  }
+  function noise({t=.1,g=.2,f=2000,f2=null,q=1,type='bandpass',delay=0}){
+    const s=ctx.currentTime+delay;
+    const len=Math.max(1,ctx.sampleRate*t|0);
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const fl=ctx.createBiquadFilter(); fl.type=type; fl.Q.value=q;
+    fl.frequency.setValueAtTime(f,s);
+    if(f2) fl.frequency.exponentialRampToValueAtTime(f2,s+t);
+    const gn=ctx.createGain();
+    gn.gain.setValueAtTime(g,s);
+    gn.gain.exponentialRampToValueAtTime(.0001,s+t);
+    src.connect(fl).connect(gn).connect(master); src.start(s); src.stop(s+t+.05);
+  }
+  const RECIPES={
+    grab:            ()=>noise({t:.04,g:.12,f:3000,q:2}),
+    'tear-progress': ()=>noise({t:.05,g:.15,f:1800,f2:2600,q:3}),
+    tear:            ()=>{ noise({t:.28,g:.3,f:3200,f2:500,q:1.2});
+                           tone({f:110,f2:60,t:.18,g:.25}); },
+    shuffle:         ()=>{ noise({t:.09,g:.08,f:900});
+                           noise({t:.09,g:.08,f:1200,delay:.11}); },
+    flip:            ()=>{ noise({t:.12,g:.12,f:600,f2:2400,q:1.5});
+                           tone({f:1200,t:.03,type:'square',g:.05,delay:.1}); },
+    'reveal-common': ()=>tone({f:660,f2:880,t:.12,g:.15}),
+    'reveal-rare':   ()=>{ tone({f:659,t:.18,type:'triangle',g:.18});
+                           tone({f:988,t:.28,type:'triangle',g:.18,delay:.09}); },
+    charge:          ()=>{ tone({f:90,f2:520,t:1.15,type:'sawtooth',g:.06});
+                           noise({t:1.15,g:.04,f:400,f2:3200,q:6}); },
+    hit:             ()=>{ [523,659,784,1047,1319].forEach((f,i)=>
+                             tone({f,t:.5,type:'triangle',g:.16,delay:i*.06}));
+                           noise({t:.5,g:.1,f:5000,f2:2000,q:.8});
+                           tone({f:130,f2:65,t:.3,g:.2}); },
+    bonus:           ()=>[880,1109,1319].forEach((f,i)=>
+                           tone({f,t:.2,type:'triangle',g:.14,delay:i*.07})),
+    cash:            ()=>{ tone({f:1568,t:.08,type:'square',g:.08});
+                           tone({f:2093,t:.25,type:'square',g:.08,delay:.08});
+                           noise({t:.18,g:.08,f:6000,q:2,delay:.05}); },
+    ship:            ()=>{ tone({f:220,t:.08,g:.15});
+                           tone({f:165,t:.12,g:.15,delay:.1}); },
+  };
+  function play(name){
+    if(!enabled||!RECIPES[name]) return;
+    try{ if(ensure()) RECIPES[name](); }catch(e){}
+  }
+  function toggle(){
+    enabled=!enabled;
+    try{ localStorage.setItem('unsleeved-sfx',enabled?'1':'0'); }catch(e){}
+    if(enabled) play('flip');
+    return enabled;
+  }
+  return {play, toggle, get enabled(){ return enabled; }};
+})();
 function playSound(name){
   document.dispatchEvent(new CustomEvent('sfx',{detail:name}));
-  // console.debug('[sfx]', name);
+  SFX.play(name);
 }
 function haptic(pattern){ if(navigator.vibrate) navigator.vibrate(pattern); }
 
@@ -758,6 +850,8 @@ const ICONS = {
   gem:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3 8 9l4 13 4-13-2.5-6"/><path d="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z"/><path d="M2 9h20"/></svg>',
   crown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>',
   info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  vol:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></svg>',
+  mute:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg>',
 };
 const TEAMS = {
   KC:  ['#c9243f','#7d1426'], MIA:['#008e97','#005778'], PHI:['#004c54','#002b30'],
@@ -1123,7 +1217,7 @@ function buyPack(tier){
   }
   state.balance -= tier.price;
   renderBalance();
-  playSound('shuffle');
+  playSound('shuffle'); haptic(12);
   state.rip = {tier, cards:buildPack(tier), idx:-1, revealedValue:0, decided:false};
   show('rip');
   renderRipPack();
@@ -1751,10 +1845,10 @@ function finishRip(decision){
       state.balance+=c.value;
       state.ledger.unshift({label:`Sold back: ${c.player} ${c.parallel}`, sub:`${now()} · instant credit`, amt:+c.value});
     });
-    playSound('cash');
+    playSound('cash'); haptic([15,40,25]);
   }else{
     cards.forEach(c=>{ c.tag=null; state.vault.unshift(c); });
-    playSound('flip');
+    playSound('flip'); haptic(10);
   }
   renderBalance();
   state.rip=null;
@@ -1847,6 +1941,12 @@ $$('#tabbar button').forEach(b=>b.addEventListener('click',()=>{
   show(b.dataset.nav);
 }));
 $('#walletChip').addEventListener('click',()=>show('wallet'));
+const sfxBtn=$('#sfxToggle');
+sfxBtn.innerHTML = SFX.enabled ? ICONS.vol : ICONS.mute;
+sfxBtn.addEventListener('click',()=>{
+  sfxBtn.innerHTML = SFX.toggle() ? ICONS.vol : ICONS.mute;
+  haptic(8);
+});
 renderShop();
 renderBalance();
 show('shop');
