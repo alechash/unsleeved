@@ -813,6 +813,70 @@ const RARITY = {
   e:{label:'Numbered', cls:'r-epic'},
   l:{label:'Chase',    cls:'r-legendary'},
 };
+/* ---- generated inventory: a few hundred extra cards on top of the
+   curated ones. Seeded PRNG, so the pool (and the economy math) is
+   identical on every load. Players are fictional; data is fake. ---- */
+(function generatePool(){
+  const rand=(s=>()=>{ // mulberry32, fixed seed
+    s|=0; s=s+0x6D2B79F5|0;
+    let t=Math.imul(s^s>>>15,1|s);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  })(20260720);
+  const pick=a=>a[rand()*a.length|0];
+  const FIRST=['Maddox','Rylan','Dex','Cassius','Bo','Tremaine','Jalen','Cody','Marcus','Andre',
+    'Zion','Trey','Malik','Devon','Chase','Xavier','Knox','Ryder','Dante','Emmett','Colt','Jaxon',
+    'Rocco','Silas','Nico','Landon','Quincy','Omar','Reese','Tobias','Ellis','Brooks','Amari',
+    'Judah','Finn','Royce','Kane','Miles','Otto','Hendrix'];
+  const LAST=['Calloway','Vance','Merritt','Slater','Boone','Hollis','Rourke','Ashford','Delgado',
+    'Winslow','Harmon','Keller','Draper','Fontaine','Marsh','Beckett','Lockhart','Pemberton',
+    'Vaughn','Crowder','Ellery','Stanton','Mercer','Quill','Hale','Redmond','Sablan','Thorne',
+    'Whitaker','Yates','Barlow','Corbin','Dunmore','Everly','Gattis','Ingram','Joyner','Kessler',
+    'Lachlan','Moss'];
+  const POS={NFL:['QB','RB','WR','TE','CB','S','LB','EDGE'], MLB:['P','C','1B','2B','3B','SS','OF','DH']};
+  const SETS={
+    NFL:['Prizm','Select','Mosaic','Donruss Optic','Score','Absolute','Phoenix','Prestige'],
+    MLB:['Topps Chrome','Bowman Chrome','Topps Series 1','Topps Heritage','Stadium Club','Topps Finest','Bowman','Topps Big League'],
+  };
+  const PAR={
+    c:['Base','Base','Base','Rated Rookie','Checkerboard'],
+    u:['Refractor','Holo','Green','Red White & Blue','Hyper','Orange Lazer','Sepia Refractor','Silver'],
+    r:['Blue Refractor','Purple Refractor','Concourse Blue','Tri-Color','Aqua Shimmer','Blue Ice','Zebra','Snakeskin'],
+    e:['RC Auto Holo','Gold Auto','Auto Refractor','RC Patch Auto','Orange Auto'],
+    l:['RC Auto Gold','Superfractor Auto','Black Finite Auto','Logoman Patch Auto'],
+  };
+  const SERIAL_MAX={r:[299,249,199,150,125], e:[99,75,50,49,25], l:[25,10,10,5,5]};
+  // [band, count, low $, high $, skew toward the low end]
+  const PLAN=[
+    ['c',130,  .75,   4.75, 1.6],
+    ['u', 90,  5,    34,    1.8],
+    ['r', 55, 36,   145,    1.7],
+    ['e', 35,155,  1400,    2.0],
+    ['l', 12,1500, 5200,    1.6],
+  ];
+  const quant=(v,q)=>Math.round(v/q)*q;
+  PLAN.forEach(([band,n,lo,hi,skew])=>{
+    for(let i=0;i<n;i++){
+      const sport=rand()<.5?'NFL':'MLB';
+      let v=lo*Math.pow(hi/lo,Math.pow(rand(),skew));
+      v=quant(v, band==='c'?.25 : band==='u'?.5 : band==='l'?25 : 1);
+      v=Math.min(hi,Math.max(lo,v));
+      const smax=SERIAL_MAX[band]?pick(SERIAL_MAX[band]):null;
+      POOL.push({
+        player:`${pick(FIRST)} ${pick(LAST)}`,
+        team:pick(Object.keys(TEAMS)), pos:pick(POS[sport]), sport,
+        year:2018+(rand()*8|0),
+        set:pick(SETS[sport]),
+        parallel:pick(PAR[band]),
+        serial:smax?`${1+(rand()*smax|0)}/${smax}`:null,
+        grade:((band==='e'||band==='l')&&rand()<.35)?pick(['PSA 9','PSA 10','BGS 9.5'])
+             :(band==='r'&&rand()<.1?'PSA 9':null),
+        value:v,
+      });
+    }
+  });
+})();
+
 /* Value decides tier: a card is banded by what it's worth. */
 const RARITY_ORDER = ['c','u','r','e','l'];
 const RARITY_BANDS = {c:5, u:35, r:150, e:1500, l:Infinity}; // upper bounds, $
@@ -827,17 +891,13 @@ POOL.forEach(c => c.rarity = rarityFor(c.value));
    `color` = the tier's accent, used on wrapper, icon, and card back. */
 const TIERS = [
   {id:'starter', name:'Starter', price:5, min:2, bonusChance:.10, color:'#4f7fa8', icon:'zap',
-   weights:{c:.963, u:.03, r:.006, e:.001, l:0},
-   chase:'Puka Nacua Silver RC'},
+   weights:{c:.963, u:.03, r:.006, e:.001, l:0}},
   {id:'clubhouse', name:'Clubhouse', price:25, min:10, bonusChance:.12, color:'#3f7f5c', icon:'sparkles',
-   weights:{c:0, u:.9868, r:.012, e:.001, l:.0002},
-   chase:'Jayden Daniels RC Auto /10'},
+   weights:{c:0, u:.9458, r:.053, e:.001, l:.0002}},
   {id:'prime', name:'Prime', price:100, min:30, bonusChance:.15, color:'#8a4fa8', icon:'gem',
-   weights:{c:0, u:.076, r:.83, e:.09, l:.004},
-   chase:'C.J. Stroud RC Auto /25'},
-  {id:'grail', name:'Grail', price:500, min:250, bonusChance:.20, color:'#c9a227', icon:'crown',
-   weights:{c:0, u:0, r:0, e:.985, l:.015},
-   chase:'Shohei Ohtani PSA 10 rookie'},
+   weights:{c:0, u:.076, r:.857, e:.063, l:.004}},
+  {id:'grail', name:'Grail', price:500, min:150, bonusChance:.20, color:'#c9a227', icon:'crown',
+   weights:{c:0, u:0, r:0, e:.964, l:.036}},
 ];
 
 /* ============================================================
@@ -958,26 +1018,35 @@ function renderShop(){
     g.appendChild(tile);
   });
 }
-/* per-card odds, Rips-style: every pullable card with value + odds */
-function packOddsList(t){
-  return POOL
-    .filter(c=>t.effWeights[c.rarity]>0 && c.value>=t.min)
-    .map(c=>({c, p:t.effWeights[c.rarity]/byRarity(c.rarity).filter(x=>x.value>=t.min).length}))
-    .sort((a,b)=>b.c.value-a.c.value);
+/* odds by value range: one row per pullable band, not per card */
+function packRanges(t){
+  return RARITY_ORDER
+    .filter(k=>t.effWeights[k]>0)
+    .map(k=>{
+      const vals=byRarity(k).filter(c=>c.value>=t.min).map(c=>c.value);
+      return {k, pct:t.effWeights[k], lo:Math.min(...vals), hi:Math.max(...vals), n:vals.length};
+    })
+    .reverse(); // biggest money first
 }
 function openPackSheet(t){
   $('#psTitle').textContent=`${t.name}`;
   $('#psSub').textContent=`One card per pack · ${money(t.min)} minimum guaranteed · bonus card in ${Math.round(t.bonusChance*100)}% of packs`;
   const host=$('#psList'); host.innerHTML='';
-  packOddsList(t).forEach(({c,p})=>{
-    const bits=[`${c.year} ${c.set}`,c.parallel];
-    if(c.serial) bits.push('#'+c.serial);
-    if(c.grade) bits.push(c.grade);
+  // the one card worth showing: the top prize
+  const top=POOL.filter(c=>t.effWeights[c.rarity]>0 && c.value>=t.min)
+    .reduce((a,c)=>c.value>a.value?c:a);
+  const topOdds=t.effWeights[top.rarity]/byRarity(top.rarity).filter(c=>c.value>=t.min).length;
+  const prize=el('div','odds-row');
+  prize.innerHTML=`
+    <div class="thumb">${miniCardHTML(top)}</div>
+    <div class="oi"><div class="on">Top prize · ${top.player}</div><div class="od">${top.year} ${top.set} · ${top.parallel}</div></div>
+    <div class="ov"><b>${money(top.value)}</b><span>${fmtOdds(topOdds)}</span></div>`;
+  host.appendChild(prize);
+  packRanges(t).forEach(({k,pct,lo,hi,n})=>{
     const row=el('div','odds-row');
     row.innerHTML=`
-      <div class="thumb">${miniCardHTML(c)}</div>
-      <div class="oi"><div class="on">${c.player}</div><div class="od">${bits.join(' · ')}</div></div>
-      <div class="ov"><b>${money(c.value)}</b><span>${fmtOdds(p)}</span></div>`;
+      <div class="oi"><div class="on">${money(lo)} – ${money(hi)}</div><div class="od">${RARITY[k].label} · ${n} card${n>1?'s':''}</div></div>
+      <div class="ov"><b>${fmtOdds(pct)}</b></div>`;
     host.appendChild(row);
   });
   $('#psRip').textContent=`Rip for $${t.price}`;
